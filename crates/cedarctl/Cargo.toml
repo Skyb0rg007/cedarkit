@@ -1,0 +1,11 @@
+[package]
+name = "cedarctl"
+description = "Command-line tool for checking and validating CedarKit policies"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cedarkit-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true

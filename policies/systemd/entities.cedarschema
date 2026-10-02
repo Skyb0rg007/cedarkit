@@ -1,0 +1,224 @@
+// Resource types for systemd's actions: the objects each action actually acts
+// on, as found in the systemd sources. Action declarations, generated from the
+// polkit .policy files, live in the per-service `*.cedarschema` files.
+//
+// `@detail("key")` names the polkit detail systemd passes to identify the
+// entity (on the type) or to supply an attribute (on the attribute). User
+// references are passed as numeric uids. Types without `@detail` are
+// singletons: each action that acts on one names its id in the action map
+// (`tools/systemd-resources.json`), so nothing needs to be passed.
+//
+// An attribute is only modelled when systemd uses it to decide authorization
+// itself. Today that means skipping polkit for the object's owner (systemd's
+// `good_user`), which `ownership.cedar` expresses as policy instead.
+
+// --- Users ------------------------------------------------------------------
+
+// `User` (core schema) is a resource when a user acts on an account, e.g. its
+// lingering. It's identified by the `uid` detail.
+
+// --- login1 -----------------------------------------------------------------
+
+@detail("seat")
+entity Seat;
+
+@detail("session")
+entity Session {
+  // logind lets a session's owner manage and lock it without polkit.
+  @detail("owner_uid")
+  owner: User,
+};
+
+// What an inhibitor lock would block: `shutdown`, `sleep`, `idle`, or one of
+// the `handle-*` key/lid events. The lock itself doesn't exist until after
+// authorization. Each inhibit action names its target.
+entity InhibitTarget;
+
+// A device, by sysfs path (seat assignment) or /dev node (storage, LUKS,
+// installation target).
+@detail("device")
+entity Device;
+
+// --- systemd1 ---------------------------------------------------------------
+
+// A service manager: `Manager::"system"` for PID 1. Also the resource for
+// operations on many units or unit files at once.
+entity Manager;
+
+// A unit, by name. Cancelling a unit's job is an operation on the unit.
+@detail("unit")
+entity Unit;
+
+// --- machine1, portable1, import1 -------------------------------------------
+
+@detail("machine")
+entity Machine {
+  // machined lets whoever registered a machine (root for `.host`) log in,
+  // and stop, kill or unregister it, without polkit.
+  @detail("owner_uid")
+  owner: User,
+};
+
+// An image pool: `machine`, `portable`, `sysext`, `confext`. Also the
+// destination of a pull whose image is named after the remote.
+@detail("class")
+entity ImagePool {
+  // The directory a pull writes to instead of the pool.
+  @detail("image_root")
+  root?: String,
+};
+
+// A managed image, as `<class>:<name>`. May not exist yet when it's the
+// destination of an import or pull.
+@detail("{class}:{image}")
+entity Image {
+  // The directory a pull writes to instead of the image's pool.
+  @detail("image_root")
+  root?: String,
+};
+
+// A running import, export or pull, by numeric id.
+@detail("transfer")
+entity Transfer;
+
+// --- sysupdate1 -------------------------------------------------------------
+
+// An update target, as `<class>:<name>` (`host:host` for the host).
+@detail("{class}:{name}")
+entity UpdateTarget;
+
+// --- network1, resolve1, timesync1 ------------------------------------------
+
+// A network interface, by name.
+@detail("interface")
+entity Link;
+
+// systemd-networkd's configuration as a whole (reload, persistent storage).
+entity NetworkConfig;
+
+// systemd-resolved's caches, statistics, server state and query monitor.
+entity Resolver;
+
+// A DNS-SD service advertisement, by id.
+@detail("dnssd_service")
+entity DnssdService {
+  // resolved lets whoever registered a service (root for .dnssd files)
+  // unregister it without polkit.
+  @detail("owner_uid")
+  owner: User,
+};
+
+// systemd-timesyncd's runtime NTP server list.
+entity TimeSync;
+
+// --- home1 ------------------------------------------------------------------
+
+// A home directory and user record, by user name. When creating, built from
+// the requested record.
+@detail("username")
+entity Home {
+  // homed lets a home's owner activate it, check and change its password
+  // without polkit. Unknown when creating a home whose UID isn't allocated
+  // yet.
+  @detail("uid")
+  owner?: User,
+};
+
+// A trusted public key for signed user records, by file name.
+@detail("signing_key")
+entity SigningKey;
+
+// --- hostname1, locale1, timedate1 ------------------------------------------
+
+// `transient` (kernel), `static` (/etc/hostname) or `pretty`.
+@detail("hostname_type")
+entity Hostname;
+
+// A key in /etc/machine-info: `ICON_NAME`, `CHASSIS`, `DEPLOYMENT`,
+// `LOCATION`, `TAGS`.
+@detail("machine_info_key")
+entity MachineInfo;
+
+// Hardware identifiers: `product-uuid` and `serial`, both in `dmi`.
+entity Hardware in [Hardware];
+
+// The system locale (/etc/locale.conf).
+entity Locale;
+
+// The console and X11 keymaps (either method may rewrite both).
+entity Keyboard;
+
+// `system` (wall clock), `rtc` (hardware clock mode) or `ntp` (whether
+// network time sync is enabled).
+entity Clock;
+
+// The system timezone (/etc/localtime).
+entity Timezone;
+
+// --- io.systemd.* -----------------------------------------------------------
+
+// An encrypted credential, by name.
+@detail("credential")
+entity Credential {
+  // systemd-creds skips polkit for a user's own user-scoped credentials
+  // (if the timestamp is fresh).
+  @detail("scope")
+  scope: String,
+  @detail("uid")
+  owner?: User,
+};
+
+// A cloud instance metadata entry: a well-known entry (`base` for raw key
+// paths), and the key path below it, if any.
+@detail("wellKnown")
+entity InstanceMetadata {
+  @detail("key")
+  key?: String,
+};
+
+// A disk image file, by path: one passed by file descriptor to mountfsd,
+// or a home image being adopted by homed.
+@detail("image_path")
+entity ImageFile;
+
+// A directory, by path: one to be bind-mounted, or one to be created.
+@detail("directory")
+entity Directory;
+
+// A user namespace registered with nsresourced, by name.
+@detail("name")
+entity UserNamespace;
+
+// A cgroup subtree to be delegated into a user namespace, by path.
+@detail("cgroup")
+entity Cgroup;
+
+// A storage volume from systemd-storage's fs provider, by name.
+@detail("name")
+entity StorageVolume;
+
+// The merged sysext (/usr, /opt) or confext (/etc) hierarchy.
+entity ExtensionHierarchy;
+
+// --- Context types ------------------------------------------------------------
+
+// Session state plus the `verb` detail systemd passes to polkit.
+type VerbContext = {
+  local: Bool,
+  active: Bool,
+  auth: Authentication,
+  details: {
+    verb: String,
+  },
+};
+
+// Session state plus whether a credential's timestamp is fresh (`1` or `0`),
+// which systemd-creds requires to skip polkit for a user's own credentials.
+type CredentialContext = {
+  local: Bool,
+  active: Bool,
+  auth: Authentication,
+  details: {
+    timestamp_fresh: String,
+  },
+};

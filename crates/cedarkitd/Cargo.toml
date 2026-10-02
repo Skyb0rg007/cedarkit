@@ -1,0 +1,15 @@
+[package]
+name = "cedarkitd"
+description = "CedarKit authority daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cedarkit-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+zbus.workspace = true
