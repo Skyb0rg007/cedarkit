@@ -9,15 +9,6 @@ permit (
 )
 when { context.local && context.active };
 
-// Requires auth_admin_keep for inactive or non-local sessions.
-permit (
-  principal,
-  action == Action::"org.freedesktop.home1.update-home-by-owner",
-  resource
-)
-when { !(context.local && context.active) }
-when { context.auth.identity == "admin" };
-
 // Requires auth_admin_keep for any session.
 permit (
   principal,
@@ -26,6 +17,7 @@ permit (
     Action::"org.freedesktop.home1.remove-home",
     Action::"org.freedesktop.home1.authenticate-home",
     Action::"org.freedesktop.home1.update-home",
+    Action::"org.freedesktop.home1.update-home-by-owner",
     Action::"org.freedesktop.home1.resize-home",
     Action::"org.freedesktop.home1.passwd-home",
     Action::"org.freedesktop.home1.activate-home",

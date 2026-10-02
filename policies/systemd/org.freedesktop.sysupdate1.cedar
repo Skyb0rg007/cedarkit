@@ -16,7 +16,20 @@ permit (
 )
 when { context.local && context.active };
 
-// Requires auth_admin for inactive or non-local sessions.
+// Requires auth_admin_keep for active local sessions.
+permit (
+  principal,
+  action in [
+    Action::"org.freedesktop.sysupdate1.update-to-version",
+    Action::"org.freedesktop.sysupdate1.vacuum",
+    Action::"org.freedesktop.sysupdate1.manage-features"
+  ],
+  resource
+)
+when { context.local && context.active }
+when { context.auth.identity == "admin" };
+
+// Requires auth_admin for any session.
 permit (
   principal,
   action in [
@@ -32,18 +45,4 @@ permit (
   ],
   resource
 )
-when { !(context.local && context.active) }
 when { context.auth.identity == "admin" && context.auth.fresh };
-
-// Requires auth_admin_keep for active local sessions.
-permit (
-  principal,
-  action in [
-    Action::"org.freedesktop.sysupdate1.update-to-version",
-    Action::"org.freedesktop.sysupdate1.vacuum",
-    Action::"org.freedesktop.sysupdate1.manage-features"
-  ],
-  resource
-)
-when { context.local && context.active }
-when { context.auth.identity == "admin" };

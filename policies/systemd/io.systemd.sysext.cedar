@@ -11,18 +11,6 @@ permit (
   resource
 );
 
-// Requires auth_admin for inactive or non-local sessions.
-permit (
-  principal,
-  action in [
-    Action::"io.systemd.sysext.manage",
-    Action::"io.systemd.confext.manage"
-  ],
-  resource
-)
-when { !(context.local && context.active) }
-when { context.auth.identity == "admin" && context.auth.fresh };
-
 // Requires auth_admin_keep for active local sessions.
 permit (
   principal,
@@ -34,3 +22,14 @@ permit (
 )
 when { context.local && context.active }
 when { context.auth.identity == "admin" };
+
+// Requires auth_admin for any session.
+permit (
+  principal,
+  action in [
+    Action::"io.systemd.sysext.manage",
+    Action::"io.systemd.confext.manage"
+  ],
+  resource
+)
+when { context.auth.identity == "admin" && context.auth.fresh };

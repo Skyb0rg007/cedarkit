@@ -9,11 +9,10 @@ permit (
 )
 when { context.local && context.active };
 
-// Requires auth_admin_keep for inactive or non-local sessions.
+// Requires auth_admin_keep for any session.
 permit (
   principal,
   action == Action::"io.systemd.ask-password.ask",
   resource
 )
-when { !(context.local && context.active) }
 when { context.auth.identity == "admin" };

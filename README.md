@@ -63,22 +63,23 @@ To decide what to ask for, CedarKit evaluates in three steps:
 
 Results use polkit's names. Remembering authentications for a while isn't implemented yet.
 
-polkit's three default columns become conditions on the session:
+polkit has three default columns, and picks exactly one per caller: `allow_active` for a local session in the foreground, `allow_inactive` for any other local session, and `allow_any` for everyone else, including remote callers and callers without a session. Cedar instead combines every policy that applies, and the least demanding permit wins. So each column becomes a policy for every session it could apply to:
 
-| polkit           | Cedar condition                      |
-|------------------|--------------------------------------|
-| `allow_active`   | `context.local && context.active`    |
-| `allow_inactive` | `context.local && !context.active`   |
-| `allow_any`      | `!context.local`                     |
+| polkit           | Cedar condition                   |
+|------------------|-----------------------------------|
+| `allow_any`      | none                              |
+| `allow_inactive` | `context.local`                   |
+| `allow_active`   | `context.local && context.active` |
+
+This gives polkit's answer as long as each column is at least as permissive as the broader one: `allow_inactive` as `allow_any`, and `allow_active` as `allow_inactive`. That's true of all of systemd's actions, and `polkit2cedar.py` refuses to translate an action where it isn't. A column with the same result as the broader one adds nothing and is left out. For example, `login1.reboot` is `auth_admin_keep` / `auth_admin_keep` / `yes`:
 
 ```cedar
-// Requires auth_admin_keep for inactive or non-local sessions.
-permit (
-  principal,
-  action in [Action::"org.freedesktop.login1.reboot", Action::"org.freedesktop.login1.power-off"],
-  resource
-)
-when { !(context.local && context.active) }
+// Allowed for active local sessions.
+permit (principal, action == Action::"org.freedesktop.login1.reboot", resource)
+when { context.local && context.active };
+
+// Requires auth_admin_keep for any session.
+permit (principal, action == Action::"org.freedesktop.login1.reboot", resource)
 when { context.auth.identity == "admin" };
 ```
 

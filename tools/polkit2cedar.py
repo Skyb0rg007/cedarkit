@@ -24,35 +24,41 @@ import xml.etree.ElementTree as ET
 
 COLS = ("any", "inactive", "active")
 
-# polkit picks `allow_active` for local active sessions, `allow_inactive` for
-# other local sessions, and `allow_any` for everything else.
-CONDITIONS = {
-    frozenset({"any", "inactive", "active"}): None,
-    frozenset({"inactive", "active"}): "context.local",
-    frozenset({"active"}): "context.local && context.active",
-    frozenset({"inactive"}): "context.local && !context.active",
-    frozenset({"any"}): "!context.local",
-    frozenset({"any", "inactive"}): "!(context.local && context.active)",
-    frozenset({"any", "active"}): "!context.local || context.active",
+# polkit picks exactly one column: `allow_active` for local active sessions,
+# `allow_inactive` for other local sessions, and `allow_any` for everything
+# else. Cedar instead combines every policy that applies, and the least
+# demanding permit wins. So each column becomes a policy for every session it
+# could apply to, which gives polkit's answer as long as each column is at
+# least as permissive as the broader one before it. check_ordered() enforces
+# that.
+SESSIONS = {
+    "any": (None, "any session"),
+    "inactive": ("context.local", "local sessions"),
+    "active": ("context.local && context.active", "active local sessions"),
 }
-COND_DESC = {
-    None: "any session",
-    "context.local": "local sessions",
-    "context.local && context.active": "active local sessions",
-    "context.local && !context.active": "inactive local sessions",
-    "!context.local": "non-local sessions",
-    "!(context.local && context.active)": "inactive or non-local sessions",
-    "!context.local || context.active": "active or non-local sessions",
-}
-RESULT_ORDER = ["yes", "auth_self", "auth_self_keep", "auth_admin", "auth_admin_keep"]
-# polkit's authentication results, as conditions on how the subject has
-# authenticated (`context.auth`). Authenticating as an admin also counts as
-# authenticating as yourself; `_keep` accepts a remembered authentication.
+
+# polkit's results, as conditions on how the subject has authenticated
+# (`context.auth`). Authenticating as an admin also counts as authenticating
+# as yourself; `_keep` accepts a remembered authentication.
 AUTH_CONDITIONS = {
+    "yes": None,
     "auth_self_keep": '["self", "admin"].contains(context.auth.identity)',
     "auth_self": '["self", "admin"].contains(context.auth.identity) && context.auth.fresh',
     "auth_admin_keep": 'context.auth.identity == "admin"',
     "auth_admin": 'context.auth.identity == "admin" && context.auth.fresh',
+}
+RESULT_ORDER = list(AUTH_CONDITIONS)
+
+# The authentications (identity, fresh) that satisfy each result, to compare
+# how permissive results are.
+_AUTHS = [(i, f) for i in ("none", "self", "admin") for f in (False, True)]
+SATISFIED_BY = {
+    "yes": set(_AUTHS),
+    "auth_self_keep": {a for a in _AUTHS if a[0] != "none"},
+    "auth_self": {a for a in _AUTHS if a[0] != "none" and a[1]},
+    "auth_admin_keep": {a for a in _AUTHS if a[0] == "admin"},
+    "auth_admin": {a for a in _AUTHS if a[0] == "admin" and a[1]},
+    "no": set(),
 }
 
 
@@ -109,30 +115,43 @@ def write_schema(path, header, actions, resources):
         f.write("\n".join(out) + "\n")
 
 
+def check_ordered(action):
+    """Exits unless each column is at least as permissive as the broader one."""
+    d = action["defaults"]
+    for c in COLS:
+        if d[c] not in SATISFIED_BY:
+            sys.exit(f"{action['id']}: unknown polkit result {d[c]!r}")
+    for broad, narrow in zip(COLS, COLS[1:]):
+        if not SATISFIED_BY[d[broad]] <= SATISFIED_BY[d[narrow]]:
+            sys.exit(
+                f"{action['id']}: allow_{broad} ({d[broad]}) isn't at least as restrictive "
+                f"as allow_{narrow} ({d[narrow]}), which this translation doesn't support"
+            )
+
+
 def write_policies(path, header, actions):
-    # Group actions sharing a result for the same set of session kinds.
+    # Group actions sharing a result for the same column. A column with the
+    # same result as the broader one is already covered by it.
     groups = {}
     for a in actions:
-        by_result = {}
+        check_ordered(a)
+        broader = None
         for c in COLS:
-            by_result.setdefault(a["defaults"][c], set()).add(c)
-        for result, cols in by_result.items():
-            if result == "no":
-                continue
-            if result not in RESULT_ORDER:
-                sys.exit(f"{a['id']}: unknown polkit result {result!r}")
-            groups.setdefault((result, frozenset(cols)), []).append(a["id"])
+            result = a["defaults"][c]
+            if result not in ("no", broader):
+                groups.setdefault((result, c), []).append(a["id"])
+            broader = result
 
     def sort_key(k):
-        return (RESULT_ORDER.index(k[0]), [c in k[1] for c in COLS][::-1])
+        return (RESULT_ORDER.index(k[0]), COLS.index(k[1]))
 
     out = [header]
-    for result, cols in sorted(groups, key=sort_key):
-        cond = CONDITIONS[cols]
-        ids = groups[(result, cols)]
+    for result, col in sorted(groups, key=sort_key):
+        session, sessions = SESSIONS[col]
+        ids = groups[(result, col)]
         verb = "Allowed" if result == "yes" else f"Requires {result}"
         out.append("")
-        out.append(f"// {verb} for {COND_DESC[cond]}.")
+        out.append(f"// {verb} for {sessions}.")
         out.append("permit (\n  principal,")
         if len(ids) == 1:
             out.append(f"  action == Action::{q(ids[0])},")
@@ -140,7 +159,7 @@ def write_policies(path, header, actions):
             out.append("  action in [")
             out.append(",\n".join(f"    Action::{q(i)}" for i in ids))
             out.append("  ],")
-        clauses = [f"when {{ {c} }}" for c in (cond, AUTH_CONDITIONS.get(result)) if c]
+        clauses = [f"when {{ {c} }}" for c in (session, AUTH_CONDITIONS[result]) if c]
         out.append("  resource\n)" + "".join(f"\n{c}" for c in clauses) + ";")
     with open(path, "w") as f:
         f.write("\n".join(out) + "\n")

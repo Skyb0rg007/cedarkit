@@ -12,28 +12,6 @@ permit (
 )
 when { context.local && context.active };
 
-// Requires auth_admin for inactive or non-local sessions.
-permit (
-  principal,
-  action in [
-    Action::"org.freedesktop.machine1.login",
-    Action::"org.freedesktop.machine1.host-login",
-    Action::"org.freedesktop.machine1.shell",
-    Action::"org.freedesktop.machine1.host-shell",
-    Action::"org.freedesktop.machine1.open-pty",
-    Action::"org.freedesktop.machine1.host-open-pty",
-    Action::"org.freedesktop.machine1.manage-machines",
-    Action::"org.freedesktop.machine1.inspect-machines",
-    Action::"org.freedesktop.machine1.create-machine",
-    Action::"org.freedesktop.machine1.register-machine",
-    Action::"org.freedesktop.machine1.manage-images",
-    Action::"org.freedesktop.machine1.inspect-images"
-  ],
-  resource
-)
-when { !(context.local && context.active) }
-when { context.auth.identity == "admin" && context.auth.fresh };
-
 // Requires auth_admin_keep for active local sessions.
 permit (
   principal,
@@ -53,3 +31,24 @@ permit (
 )
 when { context.local && context.active }
 when { context.auth.identity == "admin" };
+
+// Requires auth_admin for any session.
+permit (
+  principal,
+  action in [
+    Action::"org.freedesktop.machine1.login",
+    Action::"org.freedesktop.machine1.host-login",
+    Action::"org.freedesktop.machine1.shell",
+    Action::"org.freedesktop.machine1.host-shell",
+    Action::"org.freedesktop.machine1.open-pty",
+    Action::"org.freedesktop.machine1.host-open-pty",
+    Action::"org.freedesktop.machine1.manage-machines",
+    Action::"org.freedesktop.machine1.inspect-machines",
+    Action::"org.freedesktop.machine1.create-machine",
+    Action::"org.freedesktop.machine1.register-machine",
+    Action::"org.freedesktop.machine1.manage-images",
+    Action::"org.freedesktop.machine1.inspect-images"
+  ],
+  resource
+)
+when { context.auth.identity == "admin" && context.auth.fresh };
