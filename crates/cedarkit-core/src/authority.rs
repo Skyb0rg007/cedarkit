@@ -236,6 +236,11 @@ impl Authority {
         self.decls.actions.get(action)?.singleton.as_ref()
     }
 
+    /// What `action` does, from its `@doc` annotation.
+    pub fn description(&self, action: &str) -> Option<&str> {
+        self.decls.actions.get(action)?.description.as_deref()
+    }
+
     /// Converts string details, such as polkit's, to the types `action`
     /// declares for them. Details it doesn't declare are dropped.
     pub fn parse_details(

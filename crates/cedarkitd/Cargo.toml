@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+cedarkit-agent-protocol.workspace = true
 cedarkit-core.workspace = true
 cedarkit-logind.workspace = true
 anyhow.workspace = true
@@ -14,3 +15,8 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 zbus.workspace = true
+futures-util.workspace = true
+libc = "0.2"
+serde_json.workspace = true
+zlink = { workspace = true, features = ["server", "tokio"] }
+serde.workspace = true

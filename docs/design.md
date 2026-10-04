@@ -50,13 +50,14 @@ The **contract** consists of:
 | Mechanisms (logind, machined, …) | their own objects only | the resource, its attributes and parents, and the request details, for actions in their namespace |
 | Applications (vendor files) | their own namespace only | schemas, policies and role memberships for their own actions and roles |
 | Local admin (`/etc` files) | everything | any policy, schema or role membership |
-| Authentication agents | reporting an authentication | "user U just authenticated for this challenge" |
+| Authentication agents | showing a challenge to the user of their session | the user's choice to authenticate or not, and their answers to PAM's prompts, never the result |
+| PAM, run by CedarKit | verifying credentials | whether user U authenticated |
 | Unprivileged callers | nothing | only the question being asked |
 
 Consequences, all enforced by CedarKit:
 
 - **The subject is the calling process.** CedarKit identifies it from the D-Bus connection's credentials (pidfd where available, otherwise pid plus start time) and derives the uid and groups itself. A caller never supplies a uid. Everything else known about the subject comes from fact providers ([section 6.5](#65-fact-providers)). Checking on behalf of another process is limited to root and to mechanisms, as in polkit.
-- **Authentication state** comes only from agents (fresh) and from CedarKit's store of remembered authentications. It never comes from files, callers or mechanisms.
+- **Authentication state** comes only from PAM, which CedarKit runs itself (fresh), and from CedarKit's store of remembered authentications. It never comes from files, callers, mechanisms or agents ([section 9.6](#96-authentication-agents)).
 - **Resource facts** are accepted only from mechanisms allowed to assert them for that namespace, and **subject facts** only from the provider that owns the namespace (see [open question 1](#13-open-questions)).
 - **Vendor files** can only affect their own namespace ([section 8.2](#82-what-vendor-files-may-contain)).
 
@@ -473,11 +474,30 @@ CheckAuthorization(
     s action,
     (s a{sv} as) resource,   // id ("Type::\"id\""), attributes, parents
     a{sv} details,           // typed values
-    u flags)                 // AllowUserInteraction, ...
+    u flags,                 // AllowUserInteraction, ...
+    s cancellation_id)       // for CancelCheckAuthorization; "" for none
   -> (s decision, a(usb) options)   // options: (uid, name, keep)
+
+CancelCheckAuthorization(s cancellation_id)
 ```
 
+Cancellation ids are scoped to the caller, as in polkit.
+
 The exact wire format is settled when the interface is implemented. It must carry the information above, and it must not take the subject's uid from the caller.
+
+### 9.6 Authentication agents
+
+An authentication agent asks the user to authenticate when a process in their session meets a challenge, like polkit's agents. CedarKit's GNOME-style agent is `cedarkit-agent`.
+
+- **Registering:** an agent connects to `/run/cedarkit/org.cedarkit.Agent` and calls `org.cedarkit.Agent.Register` (Varlink) with the `more` flag. It serves its own login session or, if it has none, its user's graphical session, as determined from its credentials. It can't register for another user's session, and each session has at most one agent.
+- **Challenges:** when `CheckAuthorization` has `AllowUserInteraction` and the result is a challenge, CedarKit sends the challenge's options to the agent for the subject's session (or its user's graphical session), with the action and its `@doc` description. The call waits until the request ends. If there's no agent, the challenge is returned as is.
+- **Conversation:** the agent chooses one of the options, and calls `Authenticate` and then `Respond`, relaying PAM's prompts and messages to the user and their answers back. PAM runs in `cedarkit-pam-helper`, which CedarKit starts as root for each attempt, with the PAM service `cedarkit`. CedarKit learns the result from PAM itself; an agent can't claim one.
+- **Results:** after a failure, the agent may try again. After a success, CedarKit checks the request again with that fresh authentication ([section 4.2](#42-authentication)), remembers the authentication ([section 9.2](#92-remembered-authentications)), and returns the result. If the user dismisses the request, or the agent goes away, the request is denied.
+- **Cancellation:** the request ends early, and is denied, if the caller of `CheckAuthorization` cancels it with `CancelCheckAuthorization`, leaves the bus, or the subject process exits. The agent is told, and closes its dialog.
+- **Requests** are identified by unguessable cookies, and only the agent's user (or root) may act on them.
+- **Accounts without a password:** an agent shouldn't let PAM succeed without the user's say-so. Like GNOME Shell, `cedarkit-agent` asks AccountsService, and for an account whose password mode is "none", shows the request straight away and starts PAM only once the user confirms.
+
+The interface, with each call's semantics, is `crates/cedarkit-agent-protocol/src/org.cedarkit.Agent.varlink`.
 
 ## 10. Evolving the contract
 
@@ -539,11 +559,11 @@ Implemented:
 - evaluation: the guarantees in [section 9.1](#91-guarantees), remembered authentications matched by policy, structured results, and users resolved from the resource and facts;
 - `cedarctl validate` with the warnings in [section 8.4](#84-validation-at-load);
 - the native D-Bus interface, deriving the subject from the caller's credentials and logind;
+- authentication agents ([section 9.6](#96-authentication-agents)), with `cedarkit-agent`, a GTK agent after GNOME Shell's;
 - the translator and systemd's policies, in `policies/systemd/`.
 
 Not yet implemented:
 
-- authentication agents, so nothing is remembered yet in the daemon's store;
 - forgetting remembered authentications when the process exits or its session ends;
 - the polkit-compatible front end ([section 11](#11-the-polkit-compatible-front-end)); its labels are in `cedarkit_core::polkit`;
 - binding mechanisms and providers to namespaces ([open question 1](#13-open-questions)).

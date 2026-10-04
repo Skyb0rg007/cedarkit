@@ -2,18 +2,24 @@
 //!
 //! Exposes `org.cedarkit.Authority1` on the system bus (or the session bus,
 //! for development) and answers authorization checks using Cedar policies
-//! (docs/design.md, section 9.5).
+//! (docs/design.md, section 9.5). Authentication agents connect over
+//! Varlink, as `org.cedarkit.Agent` (section 9.6).
+
+mod agents;
+mod cancel;
+mod varlink;
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::Context as _;
+use cedarkit_agent_protocol::Identity;
 use cedarkit_core::{
-    AttrValue, AuthStore, Authority, CheckRequest, Decision, Directory, Layout, Nss, ProcessId,
-    Resource, Subject, User,
+    AttrValue, AuthStore, Authentication, Authority, CheckRequest, Decision, Directory, Layout,
+    Nss, Outcome, ProcessId, Resource, Subject, User,
 };
 use cedarkit_logind::Logind;
 use clap::Parser;
@@ -44,7 +50,28 @@ struct Args {
     /// Serve on the session bus instead of the system bus.
     #[arg(long)]
     session: bool,
+
+    /// Where to listen for authentication agents.
+    #[arg(long, default_value = cedarkit_agent_protocol::SOCKET)]
+    agent_socket: PathBuf,
+
+    /// The PAM service users authenticate with.
+    #[arg(long, default_value = "cedarkit")]
+    pam_service: String,
+
+    /// Where to find the PAM service's configuration, rather than
+    /// `/etc/pam.d`. For testing.
+    #[arg(long)]
+    pam_confdir: Option<PathBuf>,
+
+    /// `cedarkit-pam-helper`, by default next to this program.
+    #[arg(long)]
+    pam_helper: Option<PathBuf>,
 }
+
+/// The `CheckAuthorization` flag allowing CedarKit to ask the user to
+/// authenticate, as polkit's `AllowUserInteraction`.
+const ALLOW_USER_INTERACTION: u32 = 1;
 
 /// A polkit-style subject: a kind, and its details.
 type SubjectArg = (String, HashMap<String, OwnedValue>);
@@ -58,8 +85,10 @@ type OptionArg = (u32, String, bool);
 
 struct AuthorityService {
     authority: Authority,
-    logind: Option<Logind>,
+    logind: Option<Arc<Logind>>,
     store: Mutex<AuthStore>,
+    agents: Arc<agents::Agents>,
+    cancellations: Arc<cancel::Cancellations>,
 }
 
 /// The process a check is for.
@@ -131,6 +160,80 @@ impl AuthorityService {
     }
 }
 
+impl AuthorityService {
+    /// Has the agent for `session` ask a user to authenticate for a
+    /// challenge, and checks again if they do, unless `cancelled` resolves
+    /// first, with the reason. Anything else is returned as it is.
+    async fn interact(
+        &self,
+        request: &mut CheckRequest,
+        process: ProcessId,
+        session: &str,
+        outcome: Outcome,
+        cancelled: impl Future<Output = &'static str>,
+    ) -> Outcome {
+        let Decision::Challenge(options) = &outcome.decision else {
+            return outcome;
+        };
+        // PAM authenticates users by name.
+        let identities: Vec<Identity> = options
+            .iter()
+            .filter_map(|o| {
+                Some(Identity {
+                    uid: o.uid,
+                    name: o.name.clone()?,
+                })
+            })
+            .collect();
+        if identities.is_empty() {
+            return outcome;
+        }
+        let action = request.action_id.clone();
+        let message = self
+            .authority
+            .description(&action)
+            .unwrap_or(&action)
+            .to_owned();
+        let Some(challenge) = self.agents.begin(session, &action, &message, identities) else {
+            tracing::debug!(session, "no authentication agent for the session");
+            return outcome;
+        };
+
+        let deny = |reason: &str| Outcome {
+            decision: Decision::Deny,
+            reasons: vec![reason.into()],
+        };
+        // Dropping the challenge cancels the agent's request.
+        let uid = tokio::select! {
+            uid = challenge.wait() => match uid {
+                Some(uid) => uid,
+                None => return deny("the user didn't authenticate"),
+            },
+            reason = cancelled => {
+                tracing::info!(pid = process.pid, action, "{reason}, so not waiting for the user");
+                return deny(reason);
+            }
+        };
+        let auth = Authentication::fresh(uid, request);
+        request.authentications.push(auth.clone());
+        let outcome = self.authority.check(request);
+        if outcome.decision == Decision::Allow {
+            tracing::info!(
+                pid = process.pid,
+                uid,
+                action,
+                "authenticated, and remembering the authentication"
+            );
+            // Policies decide what a remembered authentication counts for.
+            self.store
+                .lock()
+                .expect("the store's lock isn't poisoned")
+                .remember(process, auth, Instant::now());
+        }
+        outcome
+    }
+}
+
 #[zbus::interface(name = "org.cedarkit.Authority1")]
 impl AuthorityService {
     /// Checks whether `subject` may perform `action` on `resource`.
@@ -140,9 +243,14 @@ impl AuthorityService {
     /// {name})`. `resource` is an id in Cedar syntax, attributes and parents;
     /// only root may pass attributes and parents. `details` are typed values.
     ///
+    /// With `AllowUserInteraction` (1) in `flags`, a challenge is passed to
+    /// the authentication agent for the subject's session, and the call
+    /// returns once the user has authenticated or given up. It's denied
+    /// early if the caller leaves the bus, the subject process exits, or the
+    /// caller passes `cancellation_id` to `CancelCheckAuthorization`.
+    ///
     /// Returns `allow`, `deny` or `challenge`, and for a challenge, who could
     /// authenticate: `(uid, name, keep)`.
-    // TODO: authentication agents, and remembering what they report.
     #[allow(clippy::too_many_arguments)]
     async fn check_authorization(
         &self,
@@ -152,11 +260,16 @@ impl AuthorityService {
         action: String,
         resource: ResourceArg,
         details: HashMap<String, OwnedValue>,
-        _flags: u32,
+        flags: u32,
+        cancellation_id: String,
     ) -> fdo::Result<(String, Vec<OptionArg>)> {
         let sender = header
             .sender()
             .ok_or_else(|| fdo::Error::Failed("no sender".into()))?;
+        let registration = match cancellation_id.as_str() {
+            "" => None,
+            id => Some(self.cancellations.register(sender, id)?),
+        };
         let caller = Self::bus_process(conn, sender.clone().into()).await?;
         let process = Self::subject_process(conn, &caller, &subject).await?;
 
@@ -165,9 +278,14 @@ impl AuthorityService {
             .map_err(|e| fdo::Error::Failed(e.to_string()))?
             .unwrap_or_else(|| User::new(process.uid));
         let mut subject = Subject::new(user);
+        // The session whose agent would ask the user to authenticate.
+        let mut session = None;
         if let Some(logind) = &self.logind {
             match logind.process(process.id.pid, process.uid).await {
-                Ok(info) => subject = subject.with_facts(info.facts(process.id.pid)),
+                Ok(info) => {
+                    subject = subject.with_facts(info.facts(process.id.pid));
+                    session = info.session.or(info.display).map(|s| s.id);
+                }
                 Err(e) => tracing::warn!(pid = process.id.pid, "can't ask logind: {e}"),
             }
         }
@@ -203,7 +321,29 @@ impl AuthorityService {
             .expect("the store's lock isn't poisoned")
             .lookup(process.id, Instant::now());
 
-        let outcome = self.authority.check(&request);
+        let mut outcome = self.authority.check(&request);
+        if flags & ALLOW_USER_INTERACTION != 0
+            && let Some(session) = &session
+        {
+            let cancelled = async {
+                let by_caller = async {
+                    match registration {
+                        Some(mut r) => {
+                            let _ = (&mut r.cancelled).await;
+                        }
+                        None => std::future::pending().await,
+                    }
+                };
+                tokio::select! {
+                    () = by_caller => "the caller cancelled the check",
+                    () = cancel::name_vanished(conn, sender) => "the caller left the bus",
+                    () = cancel::process_exited(process.id) => "the process exited",
+                }
+            };
+            outcome = self
+                .interact(&mut request, process.id, session, outcome, cancelled)
+                .await;
+        }
         tracing::info!(
             uid = process.uid,
             pid = process.id.pid,
@@ -222,6 +362,19 @@ impl AuthorityService {
             _ => Vec::new(),
         };
         Ok((outcome.decision.as_str().to_owned(), options))
+    }
+
+    /// Cancels the caller's check with `cancellation_id`, which is then
+    /// denied.
+    fn cancel_check_authorization(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        cancellation_id: String,
+    ) -> fdo::Result<()> {
+        let sender = header
+            .sender()
+            .ok_or_else(|| fdo::Error::Failed("no sender".into()))?;
+        self.cancellations.cancel(sender, &cancellation_id)
     }
 
     #[zbus(property)]
@@ -299,16 +452,29 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("{warning}");
     }
     let logind = match Logind::system().await {
-        Ok(logind) => Some(logind),
+        Ok(logind) => Some(Arc::new(logind)),
         Err(e) => {
             tracing::warn!("can't connect to logind, so it reports no facts: {e}");
             None
         }
     };
+    let pam_helper = match args.pam_helper {
+        Some(path) => path,
+        None => std::env::current_exe()
+            .context("finding cedarkit-pam-helper")?
+            .with_file_name("cedarkit-pam-helper"),
+    };
+    let agents = Arc::new(agents::Agents::new(agents::PamConfig {
+        helper: pam_helper,
+        service: args.pam_service,
+        confdir: args.pam_confdir,
+    }));
     let service = AuthorityService {
         authority: loaded.authority,
-        logind,
+        logind: logind.clone(),
         store: Mutex::default(),
+        agents: agents.clone(),
+        cancellations: Arc::default(),
     };
 
     let builder = if args.session {
@@ -324,7 +490,10 @@ async fn main() -> anyhow::Result<()> {
         .context("connecting to D-Bus")?;
 
     tracing::info!(name = BUS_NAME, path = OBJECT_PATH, "cedarkitd ready");
-    tokio::signal::ctrl_c().await?;
+    tokio::select! {
+        result = varlink::serve(&args.agent_socket, agents, logind) => result?,
+        result = tokio::signal::ctrl_c() => result?,
+    }
     tracing::info!("shutting down");
     Ok(())
 }

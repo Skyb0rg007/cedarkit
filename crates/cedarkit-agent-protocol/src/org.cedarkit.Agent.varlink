@@ -1,0 +1,77 @@
+# How authentication agents answer CedarKit's challenges (docs/design.md,
+# section 9.6). An agent runs in a user's login session, and asks the user to
+# authenticate when a process in that session needs to.
+interface org.cedarkit.Agent
+
+# A user who could authenticate.
+type Identity (
+  uid: int,
+  name: string
+)
+
+# A request to authenticate.
+type Request (
+  # Identifies the request in later calls.
+  cookie: string,
+  # The action, e.g. org.freedesktop.login1.reboot.
+  action: string,
+  # What the action does.
+  message: string,
+  # The users who could authenticate, the subject first if listed.
+  identities: []Identity
+)
+
+# What PAM asks the user.
+type Prompt (
+  text: string,
+  # Whether the answer may be shown as it's typed.
+  echo: bool
+)
+
+# Registers the caller as the authentication agent for its login session, or
+# failing that its user's graphical session. Must be called with the more
+# flag. The first reply, with neither field set, confirms the registration.
+# Each later reply is either a request to authenticate, or the cancellation
+# of an earlier request, by its cookie.
+method Register() -> (request: ?Request, cancelled: ?string)
+
+# Starts authenticating as one of a request's identities. Must be called with
+# the more flag. Replies with PAM's messages as they come, ending with a
+# prompt to answer with Respond, or with the result. After a failure, the
+# agent may start again; after a success, the request is done.
+method Authenticate(cookie: string, uid: int) -> (
+  info: ?string,
+  error: ?string,
+  prompt: ?Prompt,
+  success: ?bool
+)
+
+# Answers the last prompt. Must be called with the more flag, and replies
+# like Authenticate.
+method Respond(cookie: string, response: string) -> (
+  info: ?string,
+  error: ?string,
+  prompt: ?Prompt,
+  success: ?bool
+)
+
+# The user dismissed the request.
+method Dismiss(cookie: string) -> ()
+
+# Another agent is already registered for the session.
+error AgentExists ()
+
+# The caller isn't in a login session, nor is its user in a graphical one.
+error NoSession ()
+
+# No request with this cookie is waiting for the caller.
+error NoSuchRequest ()
+
+# The user isn't one of the request's identities.
+error NotAnIdentity ()
+
+# Respond was called without a prompt to answer.
+error NoPrompt ()
+
+# Authentication couldn't be started.
+error Failed (message: string)

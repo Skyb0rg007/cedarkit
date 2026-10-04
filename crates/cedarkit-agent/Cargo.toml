@@ -1,0 +1,19 @@
+[package]
+name = "cedarkit-agent"
+description = "CedarKit's graphical authentication agent, after GNOME Shell's"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cedarkit-agent-protocol.workspace = true
+adw = { package = "libadwaita", version = "0.9", features = ["v1_6"] }
+anyhow.workspace = true
+async-channel = "2"
+clap.workspace = true
+futures-util.workspace = true
+gtk = { package = "gtk4", version = "0.11", features = ["v4_12"] }
+nix.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+zlink = { workspace = true, features = ["smol"] }

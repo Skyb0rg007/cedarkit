@@ -72,6 +72,8 @@ pub(crate) struct ActionInfo {
     pub details: Option<BTreeMap<String, DetailType>>,
     /// Its `@singleton` resource.
     pub singleton: Option<EntityUid>,
+    /// What it does, from `@doc`.
+    pub description: Option<String>,
 }
 
 /// What the schema files declare, beyond what Cedar's schema API exposes.
@@ -443,5 +445,10 @@ fn action_info(types: &Types, decl: &Value) -> Result<ActionInfo, String> {
             Some(EntityUid::from_str(s).map_err(|e| format!("invalid @singleton {s:?}: {e}"))?)
         }
     };
-    Ok(ActionInfo { details, singleton })
+    let description = decl["annotations"]["doc"].as_str().map(str::to_owned);
+    Ok(ActionInfo {
+        details,
+        singleton,
+        description,
+    })
 }

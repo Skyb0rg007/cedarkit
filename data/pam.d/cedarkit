@@ -1,0 +1,7 @@
+#%PAM-1.0
+# Install to /etc/pam.d/cedarkit. How users authenticate when cedarkit-agent
+# asks them to, run by cedarkit-pam-helper. Like polkit's polkit-1, it uses the
+# system's usual stacks: system-auth on Fedora and Arch; common-auth and
+# common-account on Debian.
+auth       include      system-auth
+account    include      system-auth

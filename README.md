@@ -22,7 +22,9 @@ cargo test
 |------------------------------|--------------------------------------------------------------------|
 | `crates/cedarkit-core`       | The authorization engine: loads files, evaluates requests          |
 | `crates/cedarkit-logind`     | logind's fact provider: what logind knows about a process          |
-| `crates/cedarkitd`           | D-Bus daemon exposing `org.cedarkit.Authority1`                    |
+| `crates/cedarkitd`           | The daemon: `org.cedarkit.Authority1` on D-Bus, `org.cedarkit.Agent` on Varlink, and `cedarkit-pam-helper` |
+| `crates/cedarkit-agent`      | `cedarkit-agent`, a GTK authentication agent after GNOME Shell's   |
+| `crates/cedarkit-agent-protocol` | The `org.cedarkit.Agent` Varlink interface                     |
 | `crates/cedarctl`            | CLI for checking requests and validating policies                  |
 | `policies/`                  | Vendor files, laid out like `/usr/share/cedarkit`                  |
 | `policies/cedarkit/`         | CedarKit's own: the default admin role                             |
@@ -30,7 +32,7 @@ cargo test
 | `policies/systemd/`          | systemd's polkit actions translated to Cedar (see below)           |
 | `state/subject.cedarschema`  | The generated subject schema for `policies/`                       |
 | `tools/`                     | `polkit2cedar.py`, `details.py`, and the systemd action → resource map |
-| `data/`                      | D-Bus system bus configuration                                     |
+| `data/`                      | D-Bus configuration, the `cedarkit` PAM service, and the agent's autostart entry |
 
 
 ## Policy model
@@ -95,6 +97,12 @@ Here, `policies/cedarkit/admin.entities.json` makes `wheel` the general admin ro
 A check is `allow`, `deny`, or `challenge` with a list of users who could authenticate to allow it, the caller first. Each says whether a remembered authentication by them would be accepted (`keep`). CedarKit finds them by trying the caller, every member of a role, and the users the resource refers to, such as its owner.
 
 The request is denied if nobody could pass, if the action isn't declared, if the request doesn't match the schema, if a user it refers to doesn't exist, or if any policy fails to evaluate.
+
+### Authentication agents
+
+When a check is a challenge and the caller allows interaction, `cedarkitd` asks the authentication agent of the caller's session to have the user authenticate, and answers once they have. `cedarkit-agent` follows GNOME Shell's polkit dialog: it asks for one user's password (yours if you're listed, otherwise root's), shows PAM's messages as they come, and lets you try again until you succeed or cancel. For an account without a password, it just asks you to confirm.
+
+Agents talk to `cedarkitd` over [Varlink](https://varlink.org/), as `org.cedarkit.Agent` on `/run/cedarkit/org.cedarkit.Agent`. They only relay PAM's conversation: PAM runs in `cedarkit-pam-helper`, which `cedarkitd` starts as root, so `cedarkitd` sees the result itself. A successful authentication is remembered for the process that asked. If the caller gives up first (`CancelCheckAuthorization`, leaving the bus, or the process exiting), the dialog closes and the check is denied.
 
 polkit's labels (`auth_self`, `auth_admin_keep`, ...) only exist for polkit compatibility: `auth_self` if the caller is the only option, otherwise `auth_admin`, and `_keep` if remembered authentications would be accepted.
 
@@ -262,13 +270,34 @@ cedarctl check org.freedesktop.timedate1.set-time --auth-user root \
 
 # Run the daemon on the session bus and query it. Arguments: the subject
 # ("" for the caller), the action, the resource (id, attributes, parents),
-# details and flags. It replies with the decision and, for a challenge, who
+# details, flags and a cancellation id ("" for none). It replies with the decision and, for a challenge, who
 # could authenticate: (uid, name, keep).
 cargo run -p cedarkitd -- --vendor policies --admin local \
     --subject-schema state/subject.cedarschema --session &
 busctl --user call org.cedarkit.Authority1 /org/cedarkit/Authority1 \
-    org.cedarkit.Authority1 CheckAuthorization '(sa{sv})s(sa{sv}as)a{sv}u' \
-    "" 0 org.freedesktop.login1.reboot 'systemd::System::"local"' 0 0 0 0
+    org.cedarkit.Authority1 CheckAuthorization '(sa{sv})s(sa{sv}as)a{sv}us' \
+    "" 0 org.freedesktop.login1.reboot 'systemd::System::"local"' 0 0 0 0 ""
+```
+
+To try the agent, without installing a PAM service, use a PAM configuration directory with a test service, e.g. `pam/cedarkit-test`:
+
+```
+auth    required  pam_exec.so expose_authtok quiet /path/to/check-password
+account required  pam_permit.so
+```
+
+```sh
+cargo build
+target/debug/cedarkitd --vendor policies --admin local --subject-schema state/subject.cedarschema \
+    --session --agent-socket "$XDG_RUNTIME_DIR/cedarkit/agent" \
+    --pam-service cedarkit-test --pam-confdir pam &
+target/debug/cedarkit-agent --socket "$XDG_RUNTIME_DIR/cedarkit/agent" &
+
+# Flags 1: AllowUserInteraction. The dialog appears, and the call returns once
+# you've authenticated or cancelled.
+busctl --user call --timeout=120 org.cedarkit.Authority1 /org/cedarkit/Authority1 \
+    org.cedarkit.Authority1 CheckAuthorization '(sa{sv})s(sa{sv}as)a{sv}us' \
+    "" 0 org.freedesktop.timedate1.set-time 'systemd::Clock::"system"' 0 0 0 1 ""
 ```
 
 After changing which fact providers are installed, regenerate the subject schema with `cedarctl schema update`.
@@ -281,7 +310,7 @@ After changing which fact providers are installed, regenerate the subject schema
 - [x] Facts about the caller from logind
 - [x] Identify callers of the daemon from their D-Bus credentials
 - [x] Remembered authentications, matched by policy
-- [ ] Authentication agents and running the challenge
+- [x] Authentication agents and running the challenge
 - [ ] Forget remembered authentications when the process exits or its session ends
 - [ ] Implement `org.freedesktop.PolicyKit1.Authority` so existing polkit clients work unchanged, building resources from polkit details following the `@detail` annotations
 - [ ] Let mechanisms other than root report resources ([design, open question 1](docs/design.md#13-open-questions))

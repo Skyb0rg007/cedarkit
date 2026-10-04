@@ -1,0 +1,8 @@
+# Install to /etc/xdg/autostart/ to start the agent in every graphical session.
+[Desktop Entry]
+Type=Application
+Name=CedarKit Authentication Agent
+Comment=Asks you to authenticate when an application needs to
+Exec=cedarkit-agent
+NoDisplay=true
+X-GNOME-AutoRestart=true

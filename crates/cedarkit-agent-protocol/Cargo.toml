@@ -1,0 +1,11 @@
+[package]
+name = "cedarkit-agent-protocol"
+description = "CedarKit's authentication agent protocol, org.cedarkit.Agent over Varlink"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+zlink-core.workspace = true
+futures-util.workspace = true
