@@ -1,0 +1,7 @@
+[
+  {
+    "uid": { "type": "Group", "id": "wheel" },
+    "attrs": {},
+    "parents": [{ "type": "Role", "id": "admin" }]
+  }
+]

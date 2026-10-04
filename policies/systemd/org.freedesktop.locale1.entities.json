@@ -1,0 +1,15 @@
+[
+  {
+    "uid": {
+      "type": "Role",
+      "id": "admin"
+    },
+    "attrs": {},
+    "parents": [
+      {
+        "type": "Role",
+        "id": "org.freedesktop.locale1.admin"
+      }
+    ]
+  }
+]

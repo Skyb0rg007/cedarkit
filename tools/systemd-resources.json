@@ -1,452 +1,451 @@
 {
   "io.systemd.ask-password.ask": {
     "resource": [
-      "System",
+      "systemd::System",
       "User"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "io.systemd.confext.manage": {
     "resource": [
-      "ExtensionHierarchy"
+      "systemd::ExtensionHierarchy"
     ],
-    "id": "ExtensionHierarchy::\"confext\""
+    "id": "systemd::ExtensionHierarchy::\"confext\""
   },
   "io.systemd.confext.read": {
     "resource": [
-      "ExtensionHierarchy"
+      "systemd::ExtensionHierarchy"
     ],
-    "id": "ExtensionHierarchy::\"confext\""
+    "id": "systemd::ExtensionHierarchy::\"confext\""
   },
   "io.systemd.credentials.decrypt": {
     "resource": [
-      "Credential"
+      "systemd::Credential"
     ],
-    "context": "CredentialContext"
+    "context": "systemd::CredentialContext"
   },
   "io.systemd.credentials.encrypt": {
     "resource": [
-      "Credential"
+      "systemd::Credential"
     ],
-    "context": "CredentialContext"
+    "context": "systemd::CredentialContext"
   },
   "io.systemd.cryptenroll.enroll": {
     "resource": [
-      "Device"
+      "systemd::Device"
     ]
   },
   "io.systemd.imds.get": {
     "resource": [
-      "InstanceMetadata"
+      "systemd::InstanceMetadata"
     ]
   },
   "io.systemd.mount-file-system.make-directory": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.make-directory-untrusted": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.mount-directory": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.mount-directory-privately": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.mount-image": {
     "resource": [
-      "ImageFile"
+      "systemd::ImageFile"
     ]
   },
   "io.systemd.mount-file-system.mount-image-privately": {
     "resource": [
-      "ImageFile"
+      "systemd::ImageFile"
     ]
   },
   "io.systemd.mount-file-system.mount-untrusted-directory": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.mount-untrusted-directory-privately": {
     "resource": [
-      "Directory"
+      "systemd::Directory"
     ]
   },
   "io.systemd.mount-file-system.mount-untrusted-image": {
     "resource": [
-      "ImageFile"
+      "systemd::ImageFile"
     ]
   },
   "io.systemd.mount-file-system.mount-untrusted-image-privately": {
     "resource": [
-      "ImageFile"
+      "systemd::ImageFile"
     ]
   },
   "io.systemd.namespace-resource.allocate-user-namespace": {
     "resource": [
-      "UserNamespace"
+      "systemd::UserNamespace"
     ]
   },
   "io.systemd.namespace-resource.delegate-cgroup": {
     "resource": [
-      "Cgroup"
+      "systemd::Cgroup"
     ]
   },
   "io.systemd.namespace-resource.delegate-mount": {
     "resource": [
-      "UserNamespace"
+      "systemd::UserNamespace"
     ]
   },
   "io.systemd.namespace-resource.delegate-network-interface": {
     "resource": [
-      "UserNamespace"
+      "systemd::UserNamespace"
     ]
   },
   "io.systemd.namespace-resource.register-user-namespace": {
     "resource": [
-      "UserNamespace"
+      "systemd::UserNamespace"
     ]
   },
   "io.systemd.storage.block.acquire": {
     "resource": [
-      "Device"
+      "systemd::Device"
     ]
   },
   "io.systemd.storage.fs.acquire": {
     "resource": [
-      "StorageVolume"
+      "systemd::StorageVolume"
     ]
   },
   "io.systemd.sysext.manage": {
     "resource": [
-      "ExtensionHierarchy"
+      "systemd::ExtensionHierarchy"
     ],
-    "id": "ExtensionHierarchy::\"sysext\""
+    "id": "systemd::ExtensionHierarchy::\"sysext\""
   },
   "io.systemd.sysext.read": {
     "resource": [
-      "ExtensionHierarchy"
+      "systemd::ExtensionHierarchy"
     ],
-    "id": "ExtensionHierarchy::\"sysext\""
+    "id": "systemd::ExtensionHierarchy::\"sysext\""
   },
   "io.systemd.sysinstall.ListCandidateDevices": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "io.systemd.sysinstall.Run": {
     "resource": [
-      "Device"
+      "systemd::Device"
     ]
   },
   "org.freedesktop.home1.activate-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.authenticate-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.create-home": {
     "resource": [
-      "Home",
-      "ImageFile"
-    ],
-    "id": "System::\"local\""
+      "systemd::Home",
+      "systemd::ImageFile"
+    ]
   },
   "org.freedesktop.home1.manage-signing-keys": {
     "resource": [
-      "SigningKey"
+      "systemd::SigningKey"
     ]
   },
   "org.freedesktop.home1.passwd-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.remove-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.resize-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.update-home": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.home1.update-home-by-owner": {
     "resource": [
-      "Home"
+      "systemd::Home"
     ]
   },
   "org.freedesktop.hostname1.get-description": {
     "resource": [
-      "Hardware"
+      "systemd::Hardware"
     ],
-    "id": "Hardware::\"dmi\""
+    "id": "systemd::Hardware::\"dmi\""
   },
   "org.freedesktop.hostname1.get-hardware-serial": {
     "resource": [
-      "Hardware"
+      "systemd::Hardware"
     ],
-    "id": "Hardware::\"serial\""
+    "id": "systemd::Hardware::\"serial\""
   },
   "org.freedesktop.hostname1.get-product-uuid": {
     "resource": [
-      "Hardware"
+      "systemd::Hardware"
     ],
-    "id": "Hardware::\"product-uuid\""
+    "id": "systemd::Hardware::\"product-uuid\""
   },
   "org.freedesktop.hostname1.set-hostname": {
     "resource": [
-      "Hostname"
+      "systemd::Hostname"
     ],
-    "id": "Hostname::\"transient\""
+    "id": "systemd::Hostname::\"transient\""
   },
   "org.freedesktop.hostname1.set-machine-info": {
     "resource": [
-      "MachineInfo"
+      "systemd::MachineInfo"
     ]
   },
   "org.freedesktop.hostname1.set-static-hostname": {
     "resource": [
-      "Hostname"
+      "systemd::Hostname"
     ]
   },
   "org.freedesktop.import1.cancel": {
     "resource": [
-      "Transfer"
+      "systemd::Transfer"
     ]
   },
   "org.freedesktop.import1.export": {
     "resource": [
-      "Image"
+      "systemd::Image"
     ]
   },
   "org.freedesktop.import1.import": {
     "resource": [
-      "Image"
+      "systemd::Image"
     ]
   },
   "org.freedesktop.import1.pull": {
     "resource": [
-      "Image",
-      "ImagePool"
+      "systemd::Image",
+      "systemd::ImagePool"
     ]
   },
   "org.freedesktop.locale1.set-keyboard": {
     "resource": [
-      "Keyboard"
+      "systemd::Keyboard"
     ],
-    "id": "Keyboard::\"system\""
+    "id": "systemd::Keyboard::\"system\""
   },
   "org.freedesktop.locale1.set-locale": {
     "resource": [
-      "Locale"
+      "systemd::Locale"
     ],
-    "id": "Locale::\"system\""
+    "id": "systemd::Locale::\"system\""
   },
   "org.freedesktop.login1.attach-device": {
     "resource": [
-      "Device"
+      "systemd::Device"
     ]
   },
   "org.freedesktop.login1.chvt": {
     "resource": [
-      "Seat"
+      "logind::Seat"
     ]
   },
   "org.freedesktop.login1.flush-devices": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.halt": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.halt-ignore-inhibit": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.halt-multiple-sessions": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.hibernate": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.hibernate-ignore-inhibit": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.hibernate-multiple-sessions": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.inhibit-block-idle": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"idle\""
+    "id": "systemd::InhibitTarget::\"idle\""
   },
   "org.freedesktop.login1.inhibit-block-shutdown": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"shutdown\""
+    "id": "systemd::InhibitTarget::\"shutdown\""
   },
   "org.freedesktop.login1.inhibit-block-sleep": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"sleep\""
+    "id": "systemd::InhibitTarget::\"sleep\""
   },
   "org.freedesktop.login1.inhibit-delay-shutdown": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"shutdown\""
+    "id": "systemd::InhibitTarget::\"shutdown\""
   },
   "org.freedesktop.login1.inhibit-delay-sleep": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"sleep\""
+    "id": "systemd::InhibitTarget::\"sleep\""
   },
   "org.freedesktop.login1.inhibit-handle-hibernate-key": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"handle-hibernate-key\""
+    "id": "systemd::InhibitTarget::\"handle-hibernate-key\""
   },
   "org.freedesktop.login1.inhibit-handle-lid-switch": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"handle-lid-switch\""
+    "id": "systemd::InhibitTarget::\"handle-lid-switch\""
   },
   "org.freedesktop.login1.inhibit-handle-power-key": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"handle-power-key\""
+    "id": "systemd::InhibitTarget::\"handle-power-key\""
   },
   "org.freedesktop.login1.inhibit-handle-reboot-key": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"handle-reboot-key\""
+    "id": "systemd::InhibitTarget::\"handle-reboot-key\""
   },
   "org.freedesktop.login1.inhibit-handle-suspend-key": {
     "resource": [
-      "InhibitTarget"
+      "systemd::InhibitTarget"
     ],
-    "id": "InhibitTarget::\"handle-suspend-key\""
+    "id": "systemd::InhibitTarget::\"handle-suspend-key\""
   },
   "org.freedesktop.login1.lock-sessions": {
     "resource": [
-      "Session",
-      "System"
+      "logind::Session",
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.manage": {
     "resource": [
-      "Session",
+      "logind::Session",
       "User",
-      "Seat"
+      "logind::Seat"
     ]
   },
   "org.freedesktop.login1.power-off": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.power-off-ignore-inhibit": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.power-off-multiple-sessions": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.reboot": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.reboot-ignore-inhibit": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.reboot-multiple-sessions": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.set-reboot-parameter": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.set-reboot-to-boot-loader-entry": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.set-reboot-to-boot-loader-menu": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.set-reboot-to-firmware-setup": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.set-self-linger": {
     "resource": [
@@ -460,415 +459,415 @@
   },
   "org.freedesktop.login1.set-wall-message": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.suspend": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.suspend-ignore-inhibit": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.login1.suspend-multiple-sessions": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.machine1.create-machine": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.host-login": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.host-open-pty": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.host-shell": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.inspect-images": {
     "resource": [
-      "Image",
-      "ImagePool"
+      "systemd::Image",
+      "systemd::ImagePool"
     ]
   },
   "org.freedesktop.machine1.inspect-machines": {
     "resource": [
-      "Machine",
-      "System"
+      "systemd::Machine",
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.machine1.login": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.manage-images": {
     "resource": [
-      "Image",
-      "ImagePool"
+      "systemd::Image",
+      "systemd::ImagePool"
     ]
   },
   "org.freedesktop.machine1.manage-machines": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ],
-    "context": "VerbContext"
+    "context": "systemd::VerbContext"
   },
   "org.freedesktop.machine1.open-pty": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.register-machine": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.machine1.shell": {
     "resource": [
-      "Machine"
+      "systemd::Machine"
     ]
   },
   "org.freedesktop.network1.forcerenew": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.manage-links": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.reconfigure": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.reload": {
     "resource": [
-      "NetworkConfig"
+      "systemd::NetworkConfig"
     ],
-    "id": "NetworkConfig::\"system\""
+    "id": "systemd::NetworkConfig::\"system\""
   },
   "org.freedesktop.network1.renew": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.revert-dns": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.revert-ntp": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-default-route": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-dns-over-tls": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-dns-servers": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-dnssec": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-dnssec-negative-trust-anchors": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-domains": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-llmnr": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-mdns": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-ntp-servers": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.network1.set-persistent-storage": {
     "resource": [
-      "NetworkConfig"
+      "systemd::NetworkConfig"
     ],
-    "id": "NetworkConfig::\"system\""
+    "id": "systemd::NetworkConfig::\"system\""
   },
   "org.freedesktop.portable1.attach-images": {
     "resource": [
-      "Image"
+      "systemd::Image"
     ]
   },
   "org.freedesktop.portable1.inspect-images": {
     "resource": [
-      "Image"
+      "systemd::Image"
     ]
   },
   "org.freedesktop.portable1.manage-images": {
     "resource": [
-      "Image",
-      "ImagePool"
+      "systemd::Image",
+      "systemd::ImagePool"
     ]
   },
   "org.freedesktop.resolve1.dump-cache": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.dump-server-state": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.dump-statistics": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.flush-caches": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.register-service": {
     "resource": [
-      "DnssdService"
+      "systemd::DnssdService"
     ]
   },
   "org.freedesktop.resolve1.reset-server-features": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.reset-statistics": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.revert": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-default-route": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-dns-over-tls": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-dns-servers": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-dnssec": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-dnssec-negative-trust-anchors": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-domains": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-llmnr": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.set-mdns": {
     "resource": [
-      "Link"
+      "systemd::Link"
     ]
   },
   "org.freedesktop.resolve1.subscribe-dns-configuration": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.subscribe-query-results": {
     "resource": [
-      "Resolver"
+      "systemd::Resolver"
     ],
-    "id": "Resolver::\"system\""
+    "id": "systemd::Resolver::\"system\""
   },
   "org.freedesktop.resolve1.unregister-service": {
     "resource": [
-      "DnssdService"
+      "systemd::DnssdService"
     ]
   },
   "org.freedesktop.systemd1.bypass-dump-ratelimit": {
     "resource": [
-      "Manager"
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.systemd1.manage-unit-files": {
     "resource": [
-      "Manager"
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.systemd1.manage-units": {
     "resource": [
-      "Unit",
-      "Manager"
+      "systemd::Unit",
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.systemd1.reload-daemon": {
     "resource": [
-      "Manager"
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.systemd1.reply-password": {
     "resource": [
-      "System"
+      "systemd::System"
     ],
-    "id": "System::\"local\""
+    "id": "systemd::System::\"local\""
   },
   "org.freedesktop.systemd1.set-environment": {
     "resource": [
-      "Manager"
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.systemd1.set-show-status": {
     "resource": [
-      "Manager"
+      "systemd::Manager"
     ],
-    "id": "Manager::\"system\""
+    "id": "systemd::Manager::\"system\""
   },
   "org.freedesktop.sysupdate1.cancel-check": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.cancel-update": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.cancel-update-to-version": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.cancel-vacuum": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.check": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.manage-features": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.update": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.update-to-version": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.sysupdate1.vacuum": {
     "resource": [
-      "UpdateTarget"
+      "systemd::UpdateTarget"
     ]
   },
   "org.freedesktop.timedate1.set-local-rtc": {
     "resource": [
-      "Clock"
+      "systemd::Clock"
     ],
-    "id": "Clock::\"rtc\""
+    "id": "systemd::Clock::\"rtc\""
   },
   "org.freedesktop.timedate1.set-ntp": {
     "resource": [
-      "Clock"
+      "systemd::Clock"
     ],
-    "id": "Clock::\"ntp\""
+    "id": "systemd::Clock::\"ntp\""
   },
   "org.freedesktop.timedate1.set-time": {
     "resource": [
-      "Clock"
+      "systemd::Clock"
     ],
-    "id": "Clock::\"system\""
+    "id": "systemd::Clock::\"system\""
   },
   "org.freedesktop.timedate1.set-timezone": {
     "resource": [
-      "Timezone"
+      "systemd::Timezone"
     ],
-    "id": "Timezone::\"system\""
+    "id": "systemd::Timezone::\"system\""
   },
   "org.freedesktop.timesync1.set-runtime-servers": {
     "resource": [
-      "TimeSync"
+      "systemd::TimeSync"
     ],
-    "id": "TimeSync::\"system\""
+    "id": "systemd::TimeSync::\"system\""
   }
 }

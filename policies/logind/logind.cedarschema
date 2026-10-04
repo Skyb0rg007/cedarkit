@@ -1,0 +1,33 @@
+// logind's fact provider (docs/design.md, section 6.5). Built into CedarKit,
+// which queries logind for these facts.
+namespace logind {
+  // A seat, by name, e.g. `logind::Seat::"seat0"`.
+  @detail("seat")
+  entity Seat;
+
+  // A login session, by session id. Also the resource of login1's session
+  // actions; CedarKit fills in its attributes from logind.
+  @detail("session")
+  entity Session {
+    // The session's user. logind lets them manage and lock it.
+    user: User,
+    seat?: Seat,
+    remote: Bool,
+    // "user", "greeter", "lock-screen", "background", "manager", ...
+    class: String,
+    // "tty", "x11", "wayland", "unspecified", ...
+    type: String,
+    active: Bool,
+  };
+
+  // What logind knows about the calling process.
+  @subject
+  entity Process {
+    // The process's own session, if it's in one.
+    session?: Session,
+    // The user's graphical session, if any.
+    display?: Session,
+    // Some session of the user is active.
+    user_active: Bool,
+  };
+}

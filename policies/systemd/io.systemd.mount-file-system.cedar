@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Allowed for any session.
+@id("io.systemd.mount-file-system/yes/any")
 permit (
   principal,
   action in [
@@ -13,6 +14,7 @@ permit (
 );
 
 // Allowed for active local sessions.
+@id("io.systemd.mount-file-system/yes/active")
 permit (
   principal,
   action in [
@@ -21,9 +23,16 @@ permit (
   ],
   resource
 )
-when { context.local && context.active };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for any session.
+@id("io.systemd.mount-file-system/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -32,9 +41,13 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.mount-file-system.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
 
 // Requires auth_admin for any session.
+@id("io.systemd.mount-file-system/auth_admin/any")
 permit (
   principal,
   action in [
@@ -46,4 +59,6 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" && context.auth.fresh };
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.mount-file-system.admin" && context.auth.fresh
+};

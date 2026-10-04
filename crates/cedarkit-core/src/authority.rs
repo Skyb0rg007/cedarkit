@@ -1,340 +1,803 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use cedar_policy::{
-    Authorizer, Context, Entities, Entity, EntityId, EntityTypeName, EntityUid, PartialEntities,
-    PartialEntity, PartialEntityUid, PartialRequest, PolicySet, Request, RestrictedExpression,
-    Schema, SchemaFragment, ValidationMode, Validator,
+    Authorizer, Context, Entities, Entity, EntityUid, PolicySet, Request, RestrictedExpression,
+    Schema, ValidationMode, Validator,
 };
 
-use crate::{Error, Resource, Result, Subject};
+use crate::entities::{Member, Memberships};
+use crate::policies;
+use crate::schema::{self, Declarations, DetailType, Fragment};
+use crate::sources::{self, Kind, Layout, Origin, Source};
+use crate::{AttrValue, Directory, Error, Nss, Resource, Result, Subject, User, entity_uid};
 
-/// The outcome of an authorization check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Decision {
-    Allow,
-    Deny,
-    /// Allowed, but only once the subject has authenticated.
-    Challenge(Challenge),
-}
-
-impl Decision {
-    /// The equivalent polkit result: `allow`, `deny`, or e.g. `auth_admin_keep`.
-    pub fn polkit_result(self) -> &'static str {
-        match self {
-            Self::Allow => "allow",
-            Self::Deny => "deny",
-            Self::Challenge(c) => c.polkit_result(),
-        }
-    }
-}
-
-/// Who the subject has authenticated, or must authenticate, as.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Identity {
-    /// The subject themselves.
-    Self_,
-    /// An administrator.
-    Admin,
-}
-
-/// How the subject has authenticated for a request. Policies see this as the
-/// `Authentication` entity `context.auth`: `identity` is `"none"`, `"self"` or
-/// `"admin"`, and `fresh` is whether the authentication was just entered
-/// rather than remembered from an earlier one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// An authentication by `user`, given for `action` on `resource`
+/// (docs/design.md, section 4.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Authentication {
-    pub identity: Option<Identity>,
+    pub user: u32,
+    /// Given during this check, rather than remembered from an earlier one.
     pub fresh: bool,
+    pub action: String,
+    pub resource: EntityUid,
 }
 
 impl Authentication {
-    pub const NONE: Self = Self {
-        identity: None,
-        fresh: false,
-    };
-
-    fn identity_str(self) -> &'static str {
-        match self.identity {
-            None => "none",
-            Some(Identity::Self_) => "self",
-            Some(Identity::Admin) => "admin",
+    /// An authentication by `user` just given for this request.
+    pub fn fresh(user: u32, req: &CheckRequest) -> Self {
+        Self {
+            user,
+            fresh: true,
+            action: req.action_id.clone(),
+            resource: req.resource.uid.clone(),
         }
     }
 
-    fn attrs(self) -> HashMap<String, RestrictedExpression> {
-        HashMap::from([
-            (
-                "identity".to_owned(),
-                RestrictedExpression::new_string(self.identity_str().to_owned()),
-            ),
-            (
-                "fresh".to_owned(),
-                RestrictedExpression::new_bool(self.fresh),
-            ),
-        ])
-    }
-}
-
-impl Default for Authentication {
-    fn default() -> Self {
-        Self::NONE
-    }
-}
-
-/// An authentication the subject must pass before an action is allowed,
-/// mirroring polkit's `auth_self`, `auth_admin` and their `_keep` variants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Challenge {
-    pub identity: Identity,
-    /// Whether an authentication remembered from earlier is good enough
-    /// (polkit's `_keep`), rather than one entered just now.
-    pub keep: bool,
-}
-
-impl Challenge {
-    pub const SELF: Self = Self {
-        identity: Identity::Self_,
-        keep: false,
-    };
-    pub const SELF_KEEP: Self = Self {
-        identity: Identity::Self_,
-        keep: true,
-    };
-    pub const ADMIN: Self = Self {
-        identity: Identity::Admin,
-        keep: false,
-    };
-    pub const ADMIN_KEEP: Self = Self {
-        identity: Identity::Admin,
-        keep: true,
-    };
-
-    /// Every challenge, from the least to the most demanding.
-    const LADDER: [Self; 4] = [Self::SELF_KEEP, Self::SELF, Self::ADMIN_KEEP, Self::ADMIN];
-
-    /// The weakest authentication that passes this challenge.
-    fn authentication(self) -> Authentication {
-        Authentication {
-            identity: Some(self.identity),
-            fresh: !self.keep,
-        }
-    }
-
-    /// The equivalent polkit result, e.g. `auth_admin_keep`.
-    pub fn polkit_result(self) -> &'static str {
-        match self {
-            Self::SELF => "auth_self",
-            Self::SELF_KEEP => "auth_self_keep",
-            Self::ADMIN => "auth_admin",
-            Self::ADMIN_KEEP => "auth_admin_keep",
+    /// The same authentication, remembered for later requests.
+    pub fn remembered(self) -> Self {
+        Self {
+            fresh: false,
+            ..self
         }
     }
 }
 
-/// A request to check whether `subject` may perform `action_id` on `resource`.
+/// A request to check whether the subject may perform `action_id` on
+/// `resource` (docs/design.md, section 4).
 #[derive(Debug, Clone)]
 pub struct CheckRequest {
     pub subject: Subject,
     pub action_id: String,
     pub resource: Resource,
-    /// polkit-style details. Only those declared in the action's context
-    /// type, as `context.details`, are passed to policies.
-    pub details: HashMap<String, String>,
-    /// How the subject has already authenticated, if at all.
-    pub auth: Authentication,
+    /// Details for `context.details`. Those the action doesn't declare are
+    /// dropped.
+    pub details: HashMap<String, AttrValue>,
+    /// How the subject has authenticated: authentications remembered for
+    /// the subject process, and any given just now.
+    pub authentications: Vec<Authentication>,
 }
 
-/// Human-readable problems found by [`validate`]. Warnings include policies
-/// that can never apply, e.g. to a resource type their action doesn't act on.
-#[derive(Debug, Default)]
-pub struct Validation {
-    pub errors: Vec<String>,
+impl CheckRequest {
+    pub fn new(subject: Subject, action_id: impl Into<String>, resource: Resource) -> Self {
+        Self {
+            subject,
+            action_id: action_id.into(),
+            resource,
+            details: HashMap::new(),
+            authentications: Vec::new(),
+        }
+    }
+}
+
+/// The result of a check (docs/design.md, section 9.4).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Decision {
+    Allow,
+    Deny,
+    /// Allowed once one of these users authenticates. The subject is first,
+    /// if listed.
+    Challenge(Vec<ChallengeOption>),
+}
+
+impl Decision {
+    /// `allow`, `deny` or `challenge`.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Allow => "allow",
+            Self::Deny => "deny",
+            Self::Challenge(_) => "challenge",
+        }
+    }
+}
+
+/// A user whose authentication would pass a challenge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChallengeOption {
+    pub uid: u32,
+    pub name: Option<String>,
+    /// Whether an authentication by them would also be accepted once
+    /// remembered, rather than only when fresh.
+    pub keep: bool,
+}
+
+/// A decision, and why it was made: for an allow, the policies that allowed
+/// it; for a deny, the policies that forbade it, or what went wrong.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outcome {
+    pub decision: Decision,
+    pub reasons: Vec<String>,
+}
+
+impl Outcome {
+    fn deny(reason: impl Into<String>) -> Self {
+        Self {
+            decision: Decision::Deny,
+            reasons: vec![reason.into()],
+        }
+    }
+}
+
+/// A loaded [`Authority`], and problems that didn't stop it loading.
+pub struct Loaded {
+    pub authority: Authority,
     pub warnings: Vec<String>,
 }
 
-/// Validates policies against a Cedar schema.
-pub fn validate(policies_src: &str, schema_src: &str) -> Result<Validation> {
-    let policies = PolicySet::from_str(policies_src).map_err(Box::new)?;
-    let (schema, schema_warnings) =
-        Schema::from_cedarschema_str(schema_src).map_err(|e| Error::Schema(e.to_string()))?;
-    let result = Validator::new(schema).validate(&policies, ValidationMode::default());
-    Ok(Validation {
-        errors: result.validation_errors().map(|e| e.to_string()).collect(),
-        warnings: schema_warnings
-            .map(|w| w.to_string())
-            .chain(result.validation_warnings().map(|w| w.to_string()))
-            .collect(),
-    })
-}
-
-/// Holds the loaded policies and their schema, and evaluates requests
-/// against them.
+/// Holds the loaded schema, policies and role memberships, and evaluates
+/// requests against them.
 pub struct Authority {
     policies: PolicySet,
     schema: Schema,
-    /// For each declared action, the details its context declares.
-    details: HashMap<String, Vec<String>>,
+    decls: Declarations,
+    /// The fact providers the subject schema declares.
+    providers: BTreeSet<String>,
+    memberships: Memberships,
+    directory: Box<dyn Directory>,
     authorizer: Authorizer,
 }
 
+/// The id of the entities CedarKit builds once per request.
+const REQUEST: &str = "";
+
 impl Authority {
-    /// Loads every `*.cedar` policy and `*.cedarschema` schema file under `dir`.
-    pub fn from_dir(dir: impl AsRef<Path>) -> Result<Self> {
-        let dir = dir.as_ref();
-        Self::new(&read_tree(dir, "cedar")?, &read_tree(dir, "cedarschema")?)
+    /// Loads the files in `layout` (docs/design.md, section 8).
+    pub fn load(layout: &Layout) -> Result<Loaded> {
+        let sources = sources::read_sources(layout)?;
+        let subject = sources::read_subject_schema(layout)?;
+        Self::from_sources(
+            &sources,
+            &layout.subject_schema.display().to_string(),
+            &subject,
+        )
     }
 
-    /// Loads policies and their schema. The policies must validate against
-    /// the schema.
-    pub fn new(policies_src: &str, schema_src: &str) -> Result<Self> {
-        let validation = validate(policies_src, schema_src)?;
-        if !validation.errors.is_empty() {
-            return Err(Error::Invalid(validation.errors.join("\n")));
+    /// Loads schema, policy and entity data files, and the subject schema.
+    /// Fails, naming every problem, if any file breaks the rules or any
+    /// policy doesn't validate.
+    pub fn from_sources(sources: &[Source], subject_label: &str, subject: &str) -> Result<Loaded> {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+        let done = |errors: Vec<String>| {
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(Error::Load(errors))
+            }
+        };
+
+        let (fragments, decls) = read_schemas(sources, &mut errors);
+        let subject = Fragment::parse(subject_label.to_owned(), None, subject);
+        done(std::mem::take(&mut errors))?;
+        let subject = subject.map_err(|e| Error::Load(vec![e]))?;
+
+        for f in &fragments {
+            decls.check_vendor(f, &mut errors);
+        }
+        let providers = decls.check_subject(&subject, &mut errors, &mut warnings);
+        done(std::mem::take(&mut errors))?;
+
+        let schema = Schema::from_schema_fragments(
+            fragments.into_iter().chain([subject]).map(|f| f.fragment),
+        )
+        .map_err(|e| Error::Load(vec![format!("schema: {}", describe(&e))]))?;
+
+        let mut policies = PolicySet::new();
+        let mut memberships = Memberships::default();
+        for s in sources {
+            let label = s.path.display().to_string();
+            let app = match &s.origin {
+                Origin::Vendor(app) => Some(app.as_str()),
+                Origin::Admin => None,
+            };
+            match s.kind {
+                Kind::Schema => {}
+                Kind::Policies => {
+                    policies::add_file(&mut policies, &label, app, &decls, &s.text, &mut errors)
+                }
+                Kind::Entities => {
+                    memberships.add_file(&label, app, &decls, &s.text, &mut errors);
+                }
+            }
         }
 
-        let (schema, _) =
-            Schema::from_cedarschema_str(schema_src).map_err(|e| Error::Schema(e.to_string()))?;
-        Ok(Self {
-            policies: PolicySet::from_str(policies_src).map_err(Box::new)?,
-            schema,
-            details: declared_details(schema_src)?,
-            authorizer: Authorizer::new(),
+        let validation = Validator::new(schema.clone()).validate(&policies, ValidationMode::Strict);
+        errors.extend(validation.validation_errors().map(describe));
+        warnings.extend(validation.validation_warnings().map(|w| w.to_string()));
+        done(errors)?;
+
+        Ok(Loaded {
+            authority: Self {
+                policies,
+                schema,
+                decls,
+                providers,
+                memberships,
+                directory: Box::new(Nss),
+                authorizer: Authorizer::new(),
+            },
+            warnings,
         })
     }
 
-    /// Decides whether the request is allowed as the subject has
-    /// authenticated so far. If not, works out whether authenticating could
-    /// help, and if so, which authentication is the weakest that would.
-    pub fn check(&self, req: &CheckRequest) -> Result<Decision> {
-        let Some(declared_details) = self.details.get(&req.action_id) else {
-            tracing::warn!(action = req.action_id, "action not declared in the schema");
-            return Ok(Decision::Deny);
-        };
-
-        let principal = uid("User", &req.subject.name);
-        let action = uid("Action", &req.action_id);
-        let auth = uid("Authentication", "request");
-        let base = request_entities(&req.subject, &principal, &req.resource);
-        let context = self.context(req, &action, &auth, declared_details)?;
-
-        // The request with the subject authenticated as given.
-        let concrete = |authentication: Authentication| -> Result<(Request, Entities)> {
-            let entities = base.iter().cloned().chain([EntitySpec {
-                uid: auth.clone(),
-                attrs: authentication.attrs(),
-                parents: HashSet::new(),
-            }]);
-            let entities = Entities::from_entities(
-                entities
-                    .map(EntitySpec::into_entity)
-                    .collect::<Result<Vec<_>>>()?,
-                Some(&self.schema),
-            )
-            .map_err(request_err)?;
-            let request = Request::new(
-                principal.clone(),
-                action.clone(),
-                req.resource.uid.clone(),
-                context.clone(),
-                Some(&self.schema),
-            )
-            .map_err(request_err)?;
-            Ok((request, entities))
-        };
-
-        let (request, entities) = concrete(req.auth)?;
-        let response = self
-            .authorizer
-            .is_authorized(&request, &self.policies, &entities);
-        for err in response.diagnostics().errors() {
-            tracing::warn!(%err, "policy evaluation error");
-        }
-        if response.decision() == cedar_policy::Decision::Allow {
-            return Ok(Decision::Allow);
-        }
-
-        // Not allowed as things are. Evaluate again with the authentication
-        // unknown: if that's denied, no authentication would help.
-        let partial_request = PartialRequest::new(
-            PartialEntityUid::from_concrete(principal.clone()),
-            action.clone(),
-            PartialEntityUid::from_concrete(req.resource.uid.clone()),
-            Some(context.clone()),
-            &self.schema,
-        )
-        .map_err(request_err)?;
-        let partial_entities = PartialEntities::from_partial_entities(
-            base.iter()
-                .map(|e| e.to_partial(&self.schema))
-                .chain([PartialEntity::new(
-                    auth.clone(),
-                    None,
-                    Some(HashSet::new()),
-                    None,
-                    &self.schema,
-                )
-                .map_err(request_err)])
-                .collect::<Result<Vec<_>>>()?,
-            &self.schema,
-        )
-        .map_err(request_err)?;
-        let residual = self
-            .policies
-            .tpe(&partial_request, &partial_entities, &self.schema)
-            .map_err(request_err)?;
-        if residual.decision() == Some(cedar_policy::Decision::Deny) {
-            return Ok(Decision::Deny);
-        }
-
-        // Some authentication would help: find the weakest, by evaluating
-        // only what's left of the policies.
-        for challenge in Challenge::LADDER {
-            let (request, entities) = concrete(challenge.authentication())?;
-            let response = residual
-                .reauthorize(&request, &entities)
-                .map_err(request_err)?;
-            if response.decision() == cedar_policy::Decision::Allow {
-                return Ok(Decision::Challenge(challenge));
-            }
-        }
-        Ok(Decision::Deny)
+    /// Uses `directory` to look up users, rather than the system's account
+    /// database.
+    pub fn with_directory(mut self, directory: impl Directory + 'static) -> Self {
+        self.directory = Box::new(directory);
+        self
     }
 
-    /// Builds the request context, typed as the action declares it.
-    fn context(
+    /// Whether `action` is declared, and so can be checked.
+    pub fn is_declared(&self, action: &str) -> bool {
+        self.decls.actions.contains_key(action)
+    }
+
+    /// The resource `action` always acts on, if it declares one.
+    pub fn singleton(&self, action: &str) -> Option<&EntityUid> {
+        self.decls.actions.get(action)?.singleton.as_ref()
+    }
+
+    /// Converts string details, such as polkit's, to the types `action`
+    /// declares for them. Details it doesn't declare are dropped.
+    pub fn parse_details(
         &self,
-        req: &CheckRequest,
-        action: &EntityUid,
-        auth: &EntityUid,
-        declared_details: &[String],
-    ) -> Result<Context> {
-        let mut context = serde_json::json!({
-            "local": req.subject.local,
-            "active": req.subject.active,
-            "auth": { "__entity": { "type": auth.type_name().to_string(), "id": auth.id().unescaped() } },
+        action: &str,
+        details: &HashMap<String, String>,
+    ) -> Result<HashMap<String, AttrValue>> {
+        let Some(declared) = self
+            .decls
+            .actions
+            .get(action)
+            .and_then(|a| a.details.as_ref())
+        else {
+            return Ok(HashMap::new());
+        };
+        let invalid = |key: &str, value: &str, ty: &DetailType| {
+            Error::Request(format!("detail {key:?}: {value:?} isn't a {ty:?}"))
+        };
+        let mut out = HashMap::new();
+        for (key, value) in details {
+            let Some(ty) = declared.get(key) else {
+                continue;
+            };
+            let parsed = match ty {
+                DetailType::String => AttrValue::String(value.clone()),
+                DetailType::Long => {
+                    AttrValue::Long(value.parse().map_err(|_| invalid(key, value, ty))?)
+                }
+                DetailType::Bool => AttrValue::Bool(match value.as_str() {
+                    "true" | "1" | "yes" => true,
+                    "false" | "0" | "no" => false,
+                    _ => return Err(invalid(key, value, ty)),
+                }),
+                DetailType::Entity(_) if value.contains("::") => value.parse()?,
+                DetailType::Entity(name) => AttrValue::Entity(entity_uid(name, value)?),
+                DetailType::Other => return Err(invalid(key, value, ty)),
+            };
+            out.insert(key.clone(), parsed);
+        }
+        Ok(out)
+    }
+
+    /// Warnings about policies that are valid but probably not what was
+    /// meant (docs/design.md, section 8.4), beyond those from loading.
+    pub fn lint(&self) -> Vec<String> {
+        policies::lint(&self.policies, &self.memberships.populated_roles())
+    }
+
+    /// Decides whether the request is allowed, denied, or allowed once
+    /// someone authenticates (docs/design.md, section 9).
+    pub fn check(&self, req: &CheckRequest) -> Outcome {
+        let outcome = self.try_check(req).unwrap_or_else(Outcome::deny);
+        tracing::debug!(
+            action = req.action_id,
+            resource = %req.resource.uid,
+            decision = outcome.decision.as_str(),
+            reasons = ?outcome.reasons,
+            "checked"
+        );
+        outcome
+    }
+
+    fn try_check(&self, req: &CheckRequest) -> Result<Outcome, String> {
+        let prepared = self.prepare(req)?;
+
+        let unauthenticated = AuthState {
+            user: None,
+            fresh: false,
+            action: req.action_id.clone(),
+            same_resource: true,
+        };
+        // Any evaluation error denies: a forbid that fails to evaluate must
+        // not stop forbidding.
+        let forbidden = match self.evaluate(&prepared, &unauthenticated)? {
+            Eval::Allow(reasons) => {
+                return Ok(Outcome {
+                    decision: Decision::Allow,
+                    reasons,
+                });
+            }
+            Eval::Deny(forbids) => forbids,
+        };
+
+        for auth in &req.authentications {
+            let user = match self.resolve(&prepared.users, auth.user) {
+                Ok(user) => user,
+                Err(e) => {
+                    tracing::warn!("ignoring authentication: {e}");
+                    continue;
+                }
+            };
+            let state = AuthState {
+                user: Some(user),
+                fresh: auth.fresh,
+                action: auth.action.clone(),
+                same_resource: auth.resource == req.resource.uid,
+            };
+            match self.evaluate(&prepared, &state) {
+                Ok(Eval::Allow(mut reasons)) => {
+                    reasons.push(format!(
+                        "{} authentication by uid {}",
+                        if auth.fresh { "fresh" } else { "remembered" },
+                        auth.user
+                    ));
+                    return Ok(Outcome {
+                        decision: Decision::Allow,
+                        reasons,
+                    });
+                }
+                Ok(Eval::Deny(_)) => {}
+                Err(e) => tracing::warn!(uid = auth.user, "authentication not accepted: {e}"),
+            }
+        }
+
+        let mut options = Vec::new();
+        for uid in self.candidates(req, &prepared) {
+            let user = match self.resolve(&prepared.users, uid) {
+                Ok(user) => user,
+                Err(e) => {
+                    tracing::debug!("not asking uid {uid}: {e}");
+                    continue;
+                }
+            };
+            let passes = |fresh| {
+                let state = AuthState {
+                    user: Some(user.clone()),
+                    fresh,
+                    action: req.action_id.clone(),
+                    same_resource: true,
+                };
+                matches!(self.evaluate(&prepared, &state), Ok(Eval::Allow(_)))
+            };
+            let keep = passes(false);
+            if keep || passes(true) {
+                options.push(ChallengeOption {
+                    uid,
+                    name: user.name.clone(),
+                    keep,
+                });
+            }
+        }
+
+        if options.is_empty() {
+            let mut reasons: Vec<String> = forbidden
+                .into_iter()
+                .map(|id| format!("forbidden by {id}"))
+                .collect();
+            if reasons.is_empty() {
+                reasons.push("no policy allows it, even with authentication".into());
+            }
+            return Ok(Outcome {
+                decision: Decision::Deny,
+                reasons,
+            });
+        }
+        Ok(Outcome {
+            decision: Decision::Challenge(options),
+            reasons: Vec::new(),
+        })
+    }
+
+    /// The users who might pass a challenge: the subject, every member of a
+    /// role, and the users the request's entities refer to, such as the
+    /// resource's owner. The subject is first.
+    fn candidates(&self, req: &CheckRequest, prepared: &Prepared) -> Vec<u32> {
+        let mut uids = BTreeSet::new();
+        for member in self.memberships.members() {
+            match member {
+                Member::User(uid) => {
+                    uids.insert(*uid);
+                }
+                Member::Group(name) => match self.directory.group_members(name) {
+                    Ok(members) => uids.extend(members),
+                    Err(e) => tracing::warn!(group = name, "can't list members: {e}"),
+                },
+                Member::Role(_) => {}
+            }
+        }
+        uids.extend(prepared.users.keys());
+
+        let subject = req.subject.user.uid;
+        uids.remove(&subject);
+        [subject].into_iter().chain(uids).collect()
+    }
+
+    /// A user, from those already resolved for the request or from the
+    /// directory.
+    fn resolve(&self, users: &BTreeMap<u32, User>, uid: u32) -> Result<User, String> {
+        if let Some(user) = users.get(&uid) {
+            return Ok(user.clone());
+        }
+        match self.directory.user(uid) {
+            Ok(Some(user)) => Ok(user),
+            Ok(None) => Err(format!("there's no user with uid {uid}")),
+            Err(e) => Err(format!("can't look up uid {uid}: {e}")),
+        }
+    }
+
+    /// Builds the request and the entities that don't depend on how the
+    /// subject has authenticated.
+    fn prepare(&self, req: &CheckRequest) -> Result<Prepared, String> {
+        let Some(info) = self.decls.actions.get(&req.action_id) else {
+            return Err(format!("action {:?} isn't declared", req.action_id));
+        };
+
+        let mut specs = Specs::default();
+        for member in self.memberships.members() {
+            let roles: HashSet<EntityUid> = self
+                .memberships
+                .roles_of(member)
+                .map(|r| uid("Role", r))
+                .collect();
+            for role in &roles {
+                specs.add(Spec::new(role.clone()));
+            }
+            let entity = match member {
+                Member::Group(name) => uid("Group", name),
+                Member::Role(name) => uid("Role", name),
+                Member::User(_) => continue,
+            };
+            specs.add(Spec {
+                uid: entity,
+                attrs: HashMap::new(),
+                parents: roles,
+            });
+        }
+
+        // The users the request's entities refer to, which CedarKit builds
+        // itself.
+        let mut referenced = BTreeSet::new();
+
+        let mut subject_attrs = HashMap::new();
+        for facts in &req.subject.facts {
+            if !self.providers.contains(&facts.provider) {
+                tracing::debug!(provider = facts.provider, "ignoring facts from provider");
+                continue;
+            }
+            let expected = &self.decls.providers[&facts.provider];
+            if facts.process.uid.type_name().to_string() != *expected {
+                return Err(format!(
+                    "{}'s facts must be a {expected}, not {}",
+                    facts.provider, facts.process.uid
+                ));
+            }
+            for entity in [&facts.process].into_iter().chain(&facts.related) {
+                let ty = entity.uid.type_name().to_string();
+                if !ty.starts_with(&format!("{}::", facts.provider)) {
+                    return Err(format!(
+                        "{} may only report entities in its namespace, not {}",
+                        facts.provider, entity.uid
+                    ));
+                }
+                specs.add(Spec::from_resource(entity));
+                users_in(&entity.attrs, &mut referenced);
+            }
+            subject_attrs.insert(
+                facts.provider.clone(),
+                RestrictedExpression::new_entity_uid(facts.process.uid.clone()),
+            );
+        }
+        specs.add(Spec {
+            uid: uid("Subject", REQUEST),
+            attrs: subject_attrs,
+            parents: HashSet::new(),
         });
-        if !declared_details.is_empty() {
-            let details: serde_json::Map<_, _> = declared_details
+
+        let resource = &req.resource;
+        if resource.uid.type_name().to_string() == "User" {
+            referenced.insert(resource.uid.id().unescaped().to_owned());
+        } else {
+            specs.add(Spec::from_resource(resource));
+            for parent in &resource.parents {
+                specs.add(Spec::new(parent.clone()));
+            }
+            users_in(&resource.attrs, &mut referenced);
+        }
+
+        let mut users = BTreeMap::from([(req.subject.user.uid, req.subject.user.clone())]);
+        for id in referenced {
+            let uid = id
+                .parse()
+                .map_err(|_| format!("User::{id:?}: users are identified by uid"))?;
+            let user = self.resolve(&users, uid)?;
+            users.insert(uid, user);
+        }
+        for user in users.values() {
+            self.add_user(&mut specs, user);
+        }
+
+        let mut context = serde_json::json!({
+            "subject": entity_json(&uid("Subject", REQUEST)),
+            "auth": entity_json(&uid("Authentication", REQUEST)),
+        });
+        if let Some(declared) = &info.details {
+            let details: serde_json::Map<_, _> = req
+                .details
                 .iter()
-                .map(|key| {
-                    let value = req.details.get(key).ok_or_else(|| {
-                        Error::Request(format!("missing detail {key:?} for {}", req.action_id))
-                    })?;
-                    Ok((key.clone(), value.clone().into()))
-                })
-                .collect::<Result<_>>()?;
+                .filter(|(key, _)| declared.contains_key(*key))
+                .map(|(key, value)| (key.clone(), value.to_json()))
+                .collect();
             context["details"] = details.into();
         }
-        Context::from_json_value(context, Some((&self.schema, action))).map_err(request_err)
+        let action = uid("Action", &req.action_id);
+        let context = Context::from_json_value(context, Some((&self.schema, &action)))
+            .map_err(|e| format!("invalid details: {}", describe(&e)))?;
+        let request = Request::new(
+            uid("User", &req.subject.user.uid.to_string()),
+            action,
+            resource.uid.clone(),
+            context,
+            Some(&self.schema),
+        )
+        .map_err(|e| format!("invalid request: {}", describe(&e)))?;
+
+        Ok(Prepared {
+            request,
+            specs,
+            users,
+        })
+    }
+
+    /// Adds a user, their groups, and the roles they and their groups are in.
+    fn add_user(&self, specs: &mut Specs, user: &User) {
+        let mut parents: HashSet<EntityUid> = self
+            .memberships
+            .roles_of(&Member::User(user.uid))
+            .map(|r| uid("Role", r))
+            .collect();
+        for group in &user.groups {
+            let group_uid = uid("Group", &group.name);
+            parents.insert(group_uid.clone());
+            let mut attrs = HashMap::new();
+            if let Some(gid) = group.gid {
+                attrs.insert("gid".into(), RestrictedExpression::new_long(gid.into()));
+            }
+            specs.add(Spec {
+                uid: group_uid,
+                attrs,
+                parents: self
+                    .memberships
+                    .roles_of(&Member::Group(group.name.clone()))
+                    .map(|r| uid("Role", r))
+                    .collect(),
+            });
+        }
+
+        let mut attrs = HashMap::from([(
+            "uid".to_owned(),
+            RestrictedExpression::new_long(user.uid.into()),
+        )]);
+        if let Some(name) = &user.name {
+            attrs.insert(
+                "name".into(),
+                RestrictedExpression::new_string(name.clone()),
+            );
+        }
+        specs.add(Spec {
+            uid: uid("User", &user.uid.to_string()),
+            attrs,
+            parents,
+        });
+    }
+
+    /// Evaluates the request with the subject authenticated as `auth`.
+    fn evaluate(&self, prepared: &Prepared, auth: &AuthState) -> Result<Eval, String> {
+        let mut specs = prepared.specs.clone();
+        let mut attrs = HashMap::from([
+            (
+                "fresh".to_owned(),
+                RestrictedExpression::new_bool(auth.fresh),
+            ),
+            (
+                "action".to_owned(),
+                RestrictedExpression::new_entity_uid(uid("Action", &auth.action)),
+            ),
+            (
+                "same_resource".to_owned(),
+                RestrictedExpression::new_bool(auth.same_resource),
+            ),
+        ]);
+        if let Some(user) = &auth.user {
+            if !prepared.users.contains_key(&user.uid) {
+                self.add_user(&mut specs, user);
+            }
+            attrs.insert(
+                "user".into(),
+                RestrictedExpression::new_entity_uid(uid("User", &user.uid.to_string())),
+            );
+        }
+        specs.add(Spec {
+            uid: uid("Authentication", REQUEST),
+            attrs,
+            parents: HashSet::new(),
+        });
+
+        let entities = Entities::from_entities(
+            specs
+                .0
+                .into_values()
+                .map(|s| Entity::new(s.uid, s.attrs, s.parents).map_err(|e| describe(&e)))
+                .collect::<Result<Vec<_>, _>>()?,
+            Some(&self.schema),
+        )
+        .map_err(|e| format!("invalid entities: {}", describe(&e)))?;
+
+        let response = self
+            .authorizer
+            .is_authorized(&prepared.request, &self.policies, &entities);
+        let errors: Vec<String> = response
+            .diagnostics()
+            .errors()
+            .map(|e| e.to_string())
+            .collect();
+        if !errors.is_empty() {
+            return Err(format!("policy evaluation failed: {}", errors.join("; ")));
+        }
+        let mut reasons: Vec<String> = response
+            .diagnostics()
+            .reason()
+            .map(|id| id.to_string())
+            .collect();
+        reasons.sort();
+        Ok(match response.decision() {
+            cedar_policy::Decision::Allow => Eval::Allow(reasons),
+            cedar_policy::Decision::Deny => Eval::Deny(reasons),
+        })
     }
 }
 
-/// Describes a Cedar error including its causes, which say e.g. which
-/// attribute an entity is missing.
-fn request_err(e: impl std::error::Error) -> Error {
+/// Generates the subject schema for the installed providers (docs/design.md,
+/// section 6.5).
+pub fn subject_schema(sources: &[Source]) -> Result<String> {
+    let mut errors = Vec::new();
+    let (_, decls) = read_schemas(sources, &mut errors);
+    if !errors.is_empty() {
+        return Err(Error::Load(errors));
+    }
+    Ok(schema::subject_schema(&decls.providers))
+}
+
+/// Parses the core schema and the schema files.
+fn read_schemas(sources: &[Source], errors: &mut Vec<String>) -> (Vec<Fragment>, Declarations) {
+    let mut fragments = Vec::new();
+    let core = Fragment::parse("core schema".into(), None, schema::CORE);
+    for f in [core]
+        .into_iter()
+        .chain(sources.iter().filter(|s| s.kind == Kind::Schema).map(|s| {
+            let app = match &s.origin {
+                Origin::Vendor(app) => Some(app.clone()),
+                Origin::Admin => None,
+            };
+            Fragment::parse(s.path.display().to_string(), app, &s.text)
+        }))
+    {
+        match f {
+            Ok(f) => fragments.push(f),
+            Err(e) => errors.push(e),
+        }
+    }
+    let decls = Declarations::read(&fragments, errors);
+    (fragments, decls)
+}
+
+/// How the subject has authenticated, as `context.auth` sees it.
+struct AuthState {
+    user: Option<User>,
+    fresh: bool,
+    action: String,
+    same_resource: bool,
+}
+
+enum Eval {
+    /// Allowed, by these policies.
+    Allow(Vec<String>),
+    /// Denied, by these `forbid`s if any.
+    Deny(Vec<String>),
+}
+
+struct Prepared {
+    request: Request,
+    /// The request's entities, apart from the authentication.
+    specs: Specs,
+    /// The users in `specs`.
+    users: BTreeMap<u32, User>,
+}
+
+/// An entity, before it's handed to Cedar.
+#[derive(Clone)]
+struct Spec {
+    uid: EntityUid,
+    attrs: HashMap<String, RestrictedExpression>,
+    parents: HashSet<EntityUid>,
+}
+
+impl Spec {
+    fn new(uid: EntityUid) -> Self {
+        Self {
+            uid,
+            attrs: HashMap::new(),
+            parents: HashSet::new(),
+        }
+    }
+
+    fn from_resource(r: &Resource) -> Self {
+        Self {
+            uid: r.uid.clone(),
+            attrs: r
+                .attrs
+                .iter()
+                .map(|(k, v)| (k.clone(), v.to_expr()))
+                .collect(),
+            parents: r.parents.iter().cloned().collect(),
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct Specs(HashMap<EntityUid, Spec>);
+
+impl Specs {
+    /// Adds an entity. If it's already there, its parents are combined, and
+    /// the attributes of the first one with any are kept.
+    fn add(&mut self, spec: Spec) {
+        match self.0.get_mut(&spec.uid) {
+            Some(existing) => {
+                existing.parents.extend(spec.parents);
+                if existing.attrs.is_empty() {
+                    existing.attrs = spec.attrs;
+                }
+            }
+            None => {
+                self.0.insert(spec.uid.clone(), spec);
+            }
+        }
+    }
+}
+
+/// The ids of the users referred to by attributes.
+fn users_in(attrs: &HashMap<String, AttrValue>, out: &mut BTreeSet<String>) {
+    fn visit(value: &AttrValue, out: &mut BTreeSet<String>) {
+        match value {
+            AttrValue::Entity(uid) if uid.type_name().to_string() == "User" => {
+                out.insert(uid.id().unescaped().to_owned());
+            }
+            AttrValue::Set(items) => items.iter().for_each(|v| visit(v, out)),
+            _ => {}
+        }
+    }
+    attrs.values().for_each(|v| visit(v, out));
+}
+
+fn uid(ty: &str, id: &str) -> EntityUid {
+    entity_uid(ty, id).expect("entity type names are static and valid")
+}
+
+fn entity_json(uid: &EntityUid) -> serde_json::Value {
+    serde_json::json!({ "__entity": { "type": uid.type_name().to_string(), "id": uid.id().unescaped() } })
+}
+
+/// Describes a Cedar error including its causes and related errors, which
+/// say e.g. which attribute an entity is missing.
+pub(crate) fn describe(e: &(impl miette::Diagnostic + ?Sized)) -> String {
     let mut msg = e.to_string();
     let mut source = e.source();
     while let Some(cause) = source {
@@ -342,470 +805,12 @@ fn request_err(e: impl std::error::Error) -> Error {
         msg.push_str(&cause.to_string());
         source = cause.source();
     }
-    Error::Request(msg)
-}
-
-/// Reads, from the schema's JSON form, the details each action's context
-/// declares (the attributes of its `details` record).
-fn declared_details(schema_src: &str) -> Result<HashMap<String, Vec<String>>> {
-    let schema_err = |e: &dyn std::fmt::Display| Error::Schema(e.to_string());
-    let (fragment, _) =
-        SchemaFragment::from_cedarschema_str(schema_src).map_err(|e| schema_err(&e))?;
-    let json = fragment.to_json_value().map_err(|e| schema_err(&e))?;
-
-    let mut details = HashMap::new();
-    for namespace in json.as_object().into_iter().flat_map(|m| m.values()) {
-        let common = &namespace["commonTypes"];
-        // A type is either written out, or a reference to a common type.
-        let resolve = |ty: &serde_json::Value| -> serde_json::Value {
-            let name = ty
-                .get("name")
-                .filter(|_| ty["type"] == "EntityOrCommon")
-                .or_else(|| ty.get("type").filter(|t| t != &"Record"));
-            match name.and_then(|n| n.as_str()).and_then(|n| common.get(n)) {
-                Some(t) => t.clone(),
-                None => ty.clone(),
-            }
-        };
-
-        for (action, decl) in namespace["actions"].as_object().into_iter().flatten() {
-            let context = resolve(&decl["appliesTo"]["context"]);
-            let keys = resolve(&context["attributes"]["details"])["attributes"]
-                .as_object()
-                .map(|attrs| attrs.keys().cloned().collect())
-                .unwrap_or_default();
-            details.insert(action.clone(), keys);
-        }
+    if let Some(help) = e.help() {
+        msg.push_str(&format!(" ({help})"));
     }
-    Ok(details)
-}
-
-/// Concatenates every file with extension `ext` under `dir`, recursively and
-/// in lexical path order.
-pub fn read_tree(dir: &Path, ext: &str) -> Result<String> {
-    fn walk(dir: &Path, ext: &str, paths: &mut Vec<PathBuf>) -> Result<()> {
-        let io_err = |source| Error::Io {
-            path: dir.to_owned(),
-            source,
-        };
-        for entry in fs::read_dir(dir).map_err(io_err)? {
-            let path = entry.map_err(io_err)?.path();
-            if path.is_dir() {
-                walk(&path, ext, paths)?;
-            } else if path.extension().is_some_and(|e| e == ext) {
-                paths.push(path);
-            }
-        }
-        Ok(())
+    for related in e.related().into_iter().flatten() {
+        msg.push_str("; ");
+        msg.push_str(&related.to_string());
     }
-
-    let mut paths = Vec::new();
-    walk(dir, ext, &mut paths)?;
-    paths.sort();
-
-    let mut src = String::new();
-    for path in &paths {
-        tracing::debug!(path = %path.display(), "loading file");
-        let text = fs::read_to_string(path).map_err(|source| Error::Io {
-            path: path.clone(),
-            source,
-        })?;
-        src.push_str(&text);
-        src.push('\n');
-    }
-    Ok(src)
-}
-
-fn uid(ty: &str, id: &str) -> EntityUid {
-    let ty = EntityTypeName::from_str(ty).expect("entity type names are static and valid");
-    EntityUid::from_type_name_and_id(ty, EntityId::new(id))
-}
-
-/// An entity for a request, before it's converted for concrete or partial
-/// evaluation.
-#[derive(Clone)]
-struct EntitySpec {
-    uid: EntityUid,
-    attrs: HashMap<String, RestrictedExpression>,
-    parents: HashSet<EntityUid>,
-}
-
-impl EntitySpec {
-    fn into_entity(self) -> Result<Entity> {
-        Entity::new(self.uid, self.attrs, self.parents).map_err(request_err)
-    }
-
-    fn to_partial(&self, schema: &Schema) -> Result<PartialEntity> {
-        let attrs: BTreeMap<_, _> = self
-            .attrs
-            .iter()
-            .map(|(k, v)| (k.as_str().into(), v.clone()))
-            .collect();
-        PartialEntity::new(
-            self.uid.clone(),
-            Some(attrs),
-            Some(self.parents.clone()),
-            Some(BTreeMap::new()),
-            schema,
-        )
-        .map_err(request_err)
-    }
-}
-
-/// The entities for a request: the principal and its groups, the resource,
-/// and placeholders for any of the resource's parents.
-fn request_entities(
-    subject: &Subject,
-    principal: &EntityUid,
-    resource: &Resource,
-) -> Vec<EntitySpec> {
-    let groups: HashSet<EntityUid> = subject.groups.iter().map(|g| uid("Group", g)).collect();
-
-    let mut entities: HashMap<EntityUid, EntitySpec> = groups
-        .iter()
-        .map(|g| {
-            (
-                g.clone(),
-                EntitySpec {
-                    uid: g.clone(),
-                    attrs: HashMap::new(),
-                    parents: HashSet::new(),
-                },
-            )
-        })
-        .collect();
-
-    entities.insert(
-        principal.clone(),
-        EntitySpec {
-            uid: principal.clone(),
-            attrs: HashMap::from([
-                (
-                    "name".to_owned(),
-                    RestrictedExpression::new_string(subject.name.clone()),
-                ),
-                (
-                    "uid".to_owned(),
-                    RestrictedExpression::new_long(subject.uid.into()),
-                ),
-            ]),
-            parents: groups,
-        },
-    );
-
-    // When the resource is the principal itself (e.g. a user acting on their
-    // own account), the principal's entity already describes it.
-    entities
-        .entry(resource.uid.clone())
-        .or_insert_with(|| EntitySpec {
-            uid: resource.uid.clone(),
-            attrs: resource
-                .attrs
-                .iter()
-                .map(|(k, v)| (k.clone(), v.to_expr()))
-                .collect(),
-            parents: resource.parents.iter().cloned().collect(),
-        });
-    for parent in &resource.parents {
-        entities
-            .entry(parent.clone())
-            .or_insert_with(|| EntitySpec {
-                uid: parent.clone(),
-                attrs: HashMap::new(),
-                parents: HashSet::new(),
-            });
-    }
-
-    entities.into_values().collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::AttrValue;
-
-    const SCHEMA: &str = r#"
-        entity Group;
-        entity User in [Group] { name: String, uid: Long };
-        entity System;
-        entity Seat;
-        entity Session in [Seat] { owner: User };
-        entity Authentication { identity: String, fresh: Bool };
-
-        type Ctx = { local: Bool, active: Bool, auth: Authentication };
-
-        action "org.example.action", "org.freedesktop.login1.reboot" appliesTo {
-            principal: [User], resource: [System], context: Ctx,
-        };
-        action "org.freedesktop.login1.lock-sessions" appliesTo {
-            principal: [User], resource: [Session], context: Ctx,
-        };
-        action "org.example.verb" appliesTo {
-            principal: [User], resource: [System],
-            context: { local: Bool, active: Bool, auth: Authentication, details: { verb: String } },
-        };
-    "#;
-
-    const SELF_KEEP: &str = r#"["self", "admin"].contains(context.auth.identity)"#;
-    const SELF: &str = r#"["self", "admin"].contains(context.auth.identity) && context.auth.fresh"#;
-    const ADMIN_KEEP: &str = r#"context.auth.identity == "admin""#;
-    const ADMIN: &str = r#"context.auth.identity == "admin" && context.auth.fresh"#;
-
-    fn authority(policies: &str) -> Authority {
-        Authority::new(policies, SCHEMA).unwrap()
-    }
-
-    fn request(groups: &[&str], action: &str, active: bool) -> CheckRequest {
-        CheckRequest {
-            subject: Subject {
-                uid: 1000,
-                name: "alice".into(),
-                groups: groups.iter().map(|g| g.to_string()).collect(),
-                local: true,
-                active,
-            },
-            action_id: action.into(),
-            resource: Resource::parse(r#"System::"local""#).unwrap(),
-            details: HashMap::new(),
-            auth: Authentication::NONE,
-        }
-    }
-
-    fn authenticated(identity: Identity, fresh: bool) -> CheckRequest {
-        CheckRequest {
-            auth: Authentication {
-                identity: Some(identity),
-                fresh,
-            },
-            ..request(&[], "org.example.action", true)
-        }
-    }
-
-    #[test]
-    fn invalid_policies_are_refused() {
-        // `System` has no `owner`.
-        let err = Authority::new(
-            "permit (principal, action, resource) when { resource.owner == principal };",
-            SCHEMA,
-        );
-        assert!(matches!(err, Err(Error::Invalid(_))));
-    }
-
-    #[test]
-    fn undeclared_actions_are_denied() {
-        let authority = authority("permit (principal, action, resource);");
-        assert_eq!(
-            authority
-                .check(&request(&[], "org.example.undeclared", true))
-                .unwrap(),
-            Decision::Deny
-        );
-    }
-
-    #[test]
-    fn resource_attrs_and_parents() {
-        let authority = authority(
-            r#"
-            permit (principal, action, resource is Session in Seat::"seat0")
-            when { resource.owner == principal };
-            "#,
-        );
-        let alice = Resource::parse(r#"User::"alice""#).unwrap().uid;
-        let bob = Resource::parse(r#"User::"bob""#).unwrap().uid;
-        let seat0 = Resource::parse(r#"Seat::"seat0""#).unwrap().uid;
-        let session = |owner, seat| {
-            Resource::parse(r#"Session::"3""#)
-                .unwrap()
-                .with_attr("owner", AttrValue::Entity(owner))
-                .with_parent(seat)
-        };
-        let check = |resource| {
-            let req = CheckRequest {
-                resource,
-                ..request(&[], "org.freedesktop.login1.lock-sessions", true)
-            };
-            authority.check(&req).unwrap()
-        };
-
-        assert_eq!(
-            check(session(alice.clone(), seat0.clone())),
-            Decision::Allow
-        );
-        assert_eq!(check(session(bob, seat0)), Decision::Deny);
-        assert_eq!(
-            check(session(
-                alice,
-                Resource::parse(r#"Seat::"seat1""#).unwrap().uid
-            )),
-            Decision::Deny
-        );
-    }
-
-    /// Each polkit result asks for the matching challenge, and is allowed once
-    /// the subject has authenticated well enough.
-    #[test]
-    fn challenges() {
-        let check = |condition: &str, req: &CheckRequest| {
-            authority(&format!(
-                "permit (principal, action, resource) when {{ {condition} }};"
-            ))
-            .check(req)
-            .unwrap()
-        };
-        let none = request(&[], "org.example.action", true);
-
-        assert_eq!(
-            check(SELF_KEEP, &none),
-            Decision::Challenge(Challenge::SELF_KEEP)
-        );
-        assert_eq!(check(SELF, &none), Decision::Challenge(Challenge::SELF));
-        assert_eq!(
-            check(ADMIN_KEEP, &none),
-            Decision::Challenge(Challenge::ADMIN_KEEP)
-        );
-        assert_eq!(check(ADMIN, &none), Decision::Challenge(Challenge::ADMIN));
-
-        // A remembered authentication satisfies _keep, but not the rest.
-        assert_eq!(
-            check(SELF_KEEP, &authenticated(Identity::Self_, false)),
-            Decision::Allow
-        );
-        assert_eq!(
-            check(SELF, &authenticated(Identity::Self_, false)),
-            Decision::Challenge(Challenge::SELF)
-        );
-        // Authenticating as an admin also counts as authenticating yourself.
-        assert_eq!(
-            check(SELF, &authenticated(Identity::Admin, true)),
-            Decision::Allow
-        );
-        assert_eq!(
-            check(ADMIN_KEEP, &authenticated(Identity::Self_, true)),
-            Decision::Challenge(Challenge::ADMIN_KEEP)
-        );
-    }
-
-    /// When no authentication could help, the result is a denial rather than
-    /// a prompt.
-    #[test]
-    fn deny_without_prompting() {
-        let authority = authority(&format!(
-            r#"
-            permit (principal, action, resource) when {{ {ADMIN} }};
-            forbid (principal, action, resource) unless {{ context.local }};
-            "#
-        ));
-        let local = request(&[], "org.example.action", true);
-        let remote = CheckRequest {
-            subject: Subject {
-                local: false,
-                ..local.subject.clone()
-            },
-            ..local.clone()
-        };
-
-        assert_eq!(
-            authority.check(&local).unwrap(),
-            Decision::Challenge(Challenge::ADMIN)
-        );
-        assert_eq!(authority.check(&remote).unwrap(), Decision::Deny);
-    }
-
-    /// A `forbid ... unless` makes an action stricter.
-    #[test]
-    fn tightening() {
-        let check = |permitted: &str, required: &str| {
-            authority(&format!(
-                r#"
-                permit (principal, action, resource) when {{ {permitted} }};
-                forbid (principal, action, resource) unless {{ {required} }};
-                "#
-            ))
-            .check(&request(&[], "org.example.action", true))
-            .unwrap()
-        };
-
-        assert_eq!(
-            check(SELF_KEEP, ADMIN),
-            Decision::Challenge(Challenge::ADMIN)
-        );
-        assert_eq!(
-            check(ADMIN_KEEP, ADMIN),
-            Decision::Challenge(Challenge::ADMIN)
-        );
-        assert_eq!(
-            check("true", SELF_KEEP),
-            Decision::Challenge(Challenge::SELF_KEEP)
-        );
-        // A weaker requirement doesn't loosen anything.
-        assert_eq!(
-            check(ADMIN, SELF_KEEP),
-            Decision::Challenge(Challenge::ADMIN)
-        );
-        // Nor does a requirement allow anything by itself.
-        assert_eq!(check("false", SELF_KEEP), Decision::Deny);
-    }
-
-    /// Only the details an action declares are passed to policies.
-    #[test]
-    fn declared_details() {
-        let authority = authority(
-            r#"
-            permit (principal, action == Action::"org.example.verb", resource)
-            when { context.details.verb == "terminate" };
-            "#,
-        );
-        let with = |details: &[(&str, &str)]| CheckRequest {
-            details: details
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
-            ..request(&[], "org.example.verb", true)
-        };
-
-        assert_eq!(
-            authority
-                .check(&with(&[("verb", "terminate"), ("machine", "box")]))
-                .unwrap(),
-            Decision::Allow
-        );
-        assert_eq!(
-            authority.check(&with(&[("verb", "copy")])).unwrap(),
-            Decision::Deny
-        );
-        assert!(authority.check(&with(&[])).is_err());
-    }
-
-    #[test]
-    fn decisions() {
-        let authority = authority(&format!(
-            r#"
-            permit (principal in Group::"wheel", action, resource)
-            when {{ {SELF} }};
-
-            permit (principal, action == Action::"org.freedesktop.login1.reboot", resource)
-            when {{ context.local && context.active }};
-            "#
-        ));
-        let check =
-            |groups, action, active| authority.check(&request(groups, action, active)).unwrap();
-
-        assert_eq!(
-            check(&[], "org.freedesktop.login1.reboot", true),
-            Decision::Allow
-        );
-        assert_eq!(
-            check(&[], "org.freedesktop.login1.reboot", false),
-            Decision::Deny
-        );
-        assert_eq!(
-            check(&["wheel"], "org.example.action", false),
-            Decision::Challenge(Challenge::SELF)
-        );
-        // A permit that needs no authentication wins over one that does.
-        assert_eq!(
-            check(&["wheel"], "org.freedesktop.login1.reboot", true),
-            Decision::Allow
-        );
-    }
+    msg
 }

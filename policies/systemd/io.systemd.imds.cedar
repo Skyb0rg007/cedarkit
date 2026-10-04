@@ -2,9 +2,13 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for any session.
+@id("io.systemd.imds/auth_admin_keep/any")
 permit (
   principal,
   action == Action::"io.systemd.imds.get",
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.imds.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};

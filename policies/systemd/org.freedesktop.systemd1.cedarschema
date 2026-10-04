@@ -2,58 +2,58 @@
 // Do not edit; regenerate instead.
 
 @doc("Send passphrase back to system")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.systemd1.reply-password" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Manage system services or other units")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.manage-units" appliesTo {
   principal: [User],
-  resource: [Unit, Manager],
-  context: SessionContext,
+  resource: [systemd::Unit, systemd::Manager],
+  context: Context,
 };
 
 @doc("Manage system service or unit files")
 @implies("org.freedesktop.systemd1.reload-daemon org.freedesktop.systemd1.manage-units")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.manage-unit-files" appliesTo {
   principal: [User],
-  resource: [Manager],
-  context: SessionContext,
+  resource: [systemd::Manager],
+  context: Context,
 };
 
 @doc("Set or unset system and service manager environment variables")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.set-environment" appliesTo {
   principal: [User],
-  resource: [Manager],
-  context: SessionContext,
+  resource: [systemd::Manager],
+  context: Context,
 };
 
 @doc("Configure the display of status messages")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.set-show-status" appliesTo {
   principal: [User],
-  resource: [Manager],
-  context: SessionContext,
+  resource: [systemd::Manager],
+  context: Context,
 };
 
 @doc("Reload the systemd state")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.reload-daemon" appliesTo {
   principal: [User],
-  resource: [Manager],
-  context: SessionContext,
+  resource: [systemd::Manager],
+  context: Context,
 };
 
 @doc("Dump the systemd state without rate limits")
-@singleton("Manager::\"system\"")
+@singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.bypass-dump-ratelimit" appliesTo {
   principal: [User],
-  resource: [Manager],
-  context: SessionContext,
+  resource: [systemd::Manager],
+  context: Context,
 };

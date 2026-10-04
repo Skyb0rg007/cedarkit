@@ -62,6 +62,21 @@ impl AttrValue {
     }
 }
 
+impl AttrValue {
+    /// The value in Cedar's JSON format.
+    pub(crate) fn to_json(&self) -> serde_json::Value {
+        match self {
+            Self::Bool(b) => (*b).into(),
+            Self::Long(n) => (*n).into(),
+            Self::String(s) => s.clone().into(),
+            Self::Entity(uid) => serde_json::json!({
+                "__entity": { "type": uid.type_name().to_string(), "id": uid.id().unescaped() }
+            }),
+            Self::Set(items) => items.iter().map(Self::to_json).collect(),
+        }
+    }
+}
+
 impl FromStr for AttrValue {
     type Err = Error;
 

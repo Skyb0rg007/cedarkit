@@ -4,21 +4,21 @@
 @doc("Inspect a portable service image")
 action "org.freedesktop.portable1.inspect-images" appliesTo {
   principal: [User],
-  resource: [Image],
-  context: SessionContext,
+  resource: [systemd::Image],
+  context: Context,
 };
 
 @doc("Attach or detach a portable service image")
 @implies("org.freedesktop.systemd1.reload-daemon")
 action "org.freedesktop.portable1.attach-images" appliesTo {
   principal: [User],
-  resource: [Image],
-  context: SessionContext,
+  resource: [systemd::Image],
+  context: Context,
 };
 
 @doc("Delete or modify portable service image")
 action "org.freedesktop.portable1.manage-images" appliesTo {
   principal: [User],
-  resource: [Image, ImagePool],
-  context: SessionContext,
+  resource: [systemd::Image, systemd::ImagePool],
+  context: Context,
 };

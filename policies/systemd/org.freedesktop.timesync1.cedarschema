@@ -2,9 +2,9 @@
 // Do not edit; regenerate instead.
 
 @doc("Set runtime NTP servers")
-@singleton("TimeSync::\"system\"")
+@singleton("systemd::TimeSync::\"system\"")
 action "org.freedesktop.timesync1.set-runtime-servers" appliesTo {
   principal: [User],
-  resource: [TimeSync],
-  context: SessionContext,
+  resource: [systemd::TimeSync],
+  context: Context,
 };

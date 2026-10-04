@@ -293,7 +293,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cedarkit-core",
+ "cedarkit-logind",
  "clap",
+ "nix",
+ "tokio",
 ]
 
 [[package]]
@@ -301,10 +304,20 @@ name = "cedarkit-core"
 version = "0.1.0"
 dependencies = [
  "cedar-policy",
+ "cedarkit-logind",
+ "miette",
  "nix",
  "serde_json",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "cedarkit-logind"
+version = "0.1.0"
+dependencies = [
+ "cedarkit-core",
+ "zbus",
 ]
 
 [[package]]
@@ -313,6 +326,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cedarkit-core",
+ "cedarkit-logind",
  "clap",
  "tokio",
  "tracing",

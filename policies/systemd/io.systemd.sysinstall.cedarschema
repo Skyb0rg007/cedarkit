@@ -4,14 +4,14 @@
 @doc("Install OS to disk")
 action "io.systemd.sysinstall.Run" appliesTo {
   principal: [User],
-  resource: [Device],
-  context: SessionContext,
+  resource: [systemd::Device],
+  context: Context,
 };
 
 @doc("List candidate devices")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "io.systemd.sysinstall.ListCandidateDevices" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };

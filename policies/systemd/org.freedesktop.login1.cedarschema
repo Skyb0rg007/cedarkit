@@ -3,315 +3,315 @@
 
 @doc("Allow applications to inhibit system shutdown")
 @implies("org.freedesktop.login1.inhibit-delay-shutdown org.freedesktop.login1.inhibit-block-sleep org.freedesktop.login1.inhibit-delay-sleep org.freedesktop.login1.inhibit-block-idle")
-@singleton("InhibitTarget::\"shutdown\"")
+@singleton("systemd::InhibitTarget::\"shutdown\"")
 action "org.freedesktop.login1.inhibit-block-shutdown" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to delay system shutdown")
 @implies("org.freedesktop.login1.inhibit-delay-sleep")
-@singleton("InhibitTarget::\"shutdown\"")
+@singleton("systemd::InhibitTarget::\"shutdown\"")
 action "org.freedesktop.login1.inhibit-delay-shutdown" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system sleep")
 @implies("org.freedesktop.login1.inhibit-delay-sleep org.freedesktop.login1.inhibit-block-idle")
-@singleton("InhibitTarget::\"sleep\"")
+@singleton("systemd::InhibitTarget::\"sleep\"")
 action "org.freedesktop.login1.inhibit-block-sleep" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to delay system sleep")
-@singleton("InhibitTarget::\"sleep\"")
+@singleton("systemd::InhibitTarget::\"sleep\"")
 action "org.freedesktop.login1.inhibit-delay-sleep" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit automatic system suspend")
-@singleton("InhibitTarget::\"idle\"")
+@singleton("systemd::InhibitTarget::\"idle\"")
 action "org.freedesktop.login1.inhibit-block-idle" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system handling of the power key")
 @implies("org.freedesktop.login1.inhibit-handle-suspend-key org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
-@singleton("InhibitTarget::\"handle-power-key\"")
+@singleton("systemd::InhibitTarget::\"handle-power-key\"")
 action "org.freedesktop.login1.inhibit-handle-power-key" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system handling of the suspend key")
 @implies("org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
-@singleton("InhibitTarget::\"handle-suspend-key\"")
+@singleton("systemd::InhibitTarget::\"handle-suspend-key\"")
 action "org.freedesktop.login1.inhibit-handle-suspend-key" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system handling of the hibernate key")
-@singleton("InhibitTarget::\"handle-hibernate-key\"")
+@singleton("systemd::InhibitTarget::\"handle-hibernate-key\"")
 action "org.freedesktop.login1.inhibit-handle-hibernate-key" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system handling of the lid switch")
-@singleton("InhibitTarget::\"handle-lid-switch\"")
+@singleton("systemd::InhibitTarget::\"handle-lid-switch\"")
 action "org.freedesktop.login1.inhibit-handle-lid-switch" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow applications to inhibit system handling of the reboot key")
 @implies("org.freedesktop.login1.inhibit-handle-suspend-key org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
-@singleton("InhibitTarget::\"handle-reboot-key\"")
+@singleton("systemd::InhibitTarget::\"handle-reboot-key\"")
 action "org.freedesktop.login1.inhibit-handle-reboot-key" appliesTo {
   principal: [User],
-  resource: [InhibitTarget],
-  context: SessionContext,
+  resource: [systemd::InhibitTarget],
+  context: Context,
 };
 
 @doc("Allow non-logged-in user to run programs")
 action "org.freedesktop.login1.set-self-linger" appliesTo {
   principal: [User],
   resource: [User],
-  context: SessionContext,
+  context: Context,
 };
 
 @doc("Allow non-logged-in users to run programs")
 action "org.freedesktop.login1.set-user-linger" appliesTo {
   principal: [User],
   resource: [User],
-  context: SessionContext,
+  context: Context,
 };
 
 @doc("Allow attaching devices to seats")
 @implies("org.freedesktop.login1.flush-devices")
 action "org.freedesktop.login1.attach-device" appliesTo {
   principal: [User],
-  resource: [Device],
-  context: SessionContext,
+  resource: [systemd::Device],
+  context: Context,
 };
 
 @doc("Flush device to seat attachments")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.flush-devices" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Power off the system")
 @implies("org.freedesktop.login1.set-wall-message")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Power off the system while other users are logged in")
 @implies("org.freedesktop.login1.power-off")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off-multiple-sessions" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Power off the system while an application is inhibiting this")
 @implies("org.freedesktop.login1.power-off")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off-ignore-inhibit" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Reboot the system")
 @implies("org.freedesktop.login1.set-wall-message")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Reboot the system while other users are logged in")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot-multiple-sessions" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Reboot the system while an application is inhibiting this")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot-ignore-inhibit" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Halt the system")
 @implies("org.freedesktop.login1.set-wall-message")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Halt the system while other users are logged in")
 @implies("org.freedesktop.login1.halt")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt-multiple-sessions" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Halt the system while an application is inhibiting this")
 @implies("org.freedesktop.login1.halt")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt-ignore-inhibit" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Suspend the system")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Suspend the system while other users are logged in")
 @implies("org.freedesktop.login1.suspend")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend-multiple-sessions" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Suspend the system while an application is inhibiting this")
 @implies("org.freedesktop.login1.suspend")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend-ignore-inhibit" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Hibernate the system")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Hibernate the system while other users are logged in")
 @implies("org.freedesktop.login1.hibernate")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate-multiple-sessions" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Hibernate the system while an application is inhibiting this")
 @implies("org.freedesktop.login1.hibernate")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate-ignore-inhibit" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Manage active sessions, users and seats")
 action "org.freedesktop.login1.manage" appliesTo {
   principal: [User],
-  resource: [Session, User, Seat],
-  context: SessionContext,
+  resource: [logind::Session, User, logind::Seat],
+  context: Context,
 };
 
 @doc("Lock or unlock active sessions")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.lock-sessions" appliesTo {
   principal: [User],
-  resource: [Session, System],
-  context: SessionContext,
+  resource: [logind::Session, systemd::System],
+  context: Context,
 };
 
 @doc("Set the reboot \"reason\" in the kernel")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-parameter" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Indicate to the firmware to boot to setup interface")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-firmware-setup" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Indicate to the boot loader to boot to the boot loader menu")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-boot-loader-menu" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Indicate to the boot loader to boot a specific entry")
 @implies("org.freedesktop.login1.reboot")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-boot-loader-entry" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Set a wall message")
-@singleton("System::\"local\"")
+@singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-wall-message" appliesTo {
   principal: [User],
-  resource: [System],
-  context: SessionContext,
+  resource: [systemd::System],
+  context: Context,
 };
 
 @doc("Change Session")
 action "org.freedesktop.login1.chvt" appliesTo {
   principal: [User],
-  resource: [Seat],
-  context: SessionContext,
+  resource: [logind::Seat],
+  context: Context,
 };

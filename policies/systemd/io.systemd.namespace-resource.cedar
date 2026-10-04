@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Allowed for any session.
+@id("io.systemd.namespace-resource/yes/any")
 permit (
   principal,
   action in [
@@ -11,5 +12,21 @@ permit (
     Action::"io.systemd.namespace-resource.delegate-cgroup",
     Action::"io.systemd.namespace-resource.delegate-network-interface"
   ],
+  resource
+);
+
+// Implied by io.systemd.namespace-resource.register-user-namespace, allowed, for any session.
+@id("io.systemd.namespace-resource.allocate-user-namespace/implied-by/io.systemd.namespace-resource.register-user-namespace/any")
+permit (
+  principal,
+  action == Action::"io.systemd.namespace-resource.allocate-user-namespace",
+  resource
+);
+
+// Implied by io.systemd.namespace-resource.allocate-user-namespace, allowed, for any session.
+@id("io.systemd.namespace-resource.register-user-namespace/implied-by/io.systemd.namespace-resource.allocate-user-namespace/any")
+permit (
+  principal,
+  action == Action::"io.systemd.namespace-resource.register-user-namespace",
   resource
 );

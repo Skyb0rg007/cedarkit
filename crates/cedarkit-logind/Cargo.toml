@@ -1,0 +1,10 @@
+[package]
+name = "cedarkit-logind"
+description = "logind's fact provider for CedarKit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cedarkit-core.workspace = true
+zbus.workspace = true

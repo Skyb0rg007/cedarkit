@@ -9,5 +9,9 @@ license.workspace = true
 cedar-policy.workspace = true
 nix.workspace = true
 serde_json.workspace = true
+miette = "7"
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+cedarkit-logind.workspace = true

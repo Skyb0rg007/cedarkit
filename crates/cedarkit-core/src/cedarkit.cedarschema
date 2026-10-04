@@ -1,0 +1,36 @@
+// Version 1 of the CedarKit core schema. Changes are append-only:
+// see docs/design.md, section 10.
+
+// A role, such as `Role::"admin"`. Policies ask for roles rather than naming
+// groups, and entity data files (`*.entities.json`) say who's in them.
+entity Role in [Role];
+
+// A group, by name, e.g. `Group::"wheel"`.
+entity Group in [Role] {
+  gid?: Long,
+};
+
+// A user, by uid, e.g. `User::"1000"`.
+entity User in [Group, Role] {
+  uid: Long,
+  // Absent for accounts without a name.
+  name?: String,
+};
+
+// entity Subject: what fact providers know about the calling process.
+// Declared in the generated subject schema, with one optional attribute per
+// installed fact provider (docs/design.md, section 6.5).
+
+// How the subject has authenticated for this request.
+entity Authentication {
+  // Set only when a credential was verified for this user.
+  user?: User,
+  // Authenticated during this check, rather than remembered.
+  fresh: Bool,
+  // The action the authentication was given for.
+  action: Action,
+  // The authentication was given for this request's resource.
+  same_resource: Bool,
+};
+
+type Context = { subject: Subject, auth: Authentication };

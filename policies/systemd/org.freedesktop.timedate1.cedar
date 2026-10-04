@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for any session.
+@id("org.freedesktop.timedate1/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -12,4 +13,31 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.timedate1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
+
+// Implied by org.freedesktop.timedate1.set-time, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.timedate1.set-timezone/implied-by/org.freedesktop.timedate1.set-time/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.timedate1.set-timezone",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.timedate1.admin" &&
+  context.auth.action == Action::"org.freedesktop.timedate1.set-time"
+};
+
+// Implied by org.freedesktop.timedate1.set-time, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.timedate1.set-ntp/implied-by/org.freedesktop.timedate1.set-time/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.timedate1.set-ntp",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.timedate1.admin" &&
+  context.auth.action == Action::"org.freedesktop.timedate1.set-time"
+};

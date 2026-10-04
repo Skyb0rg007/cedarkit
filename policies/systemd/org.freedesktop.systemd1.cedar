@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for active local sessions.
+@id("org.freedesktop.systemd1/auth_admin_keep/active")
 permit (
   principal,
   action in [
@@ -15,10 +16,20 @@ permit (
   ],
   resource
 )
-when { context.local && context.active }
-when { context.auth.identity == "admin" };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.systemd1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
 
 // Requires auth_admin for any session.
+@id("org.freedesktop.systemd1/auth_admin/any")
 permit (
   principal,
   action in [
@@ -31,4 +42,63 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" && context.auth.fresh };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.systemd1.admin" && context.auth.fresh
+};
+
+// Implied by org.freedesktop.systemd1.manage-unit-files, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.systemd1.manage-units/implied-by/org.freedesktop.systemd1.manage-unit-files/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.systemd1.manage-units",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.systemd1.admin" &&
+  context.auth.action == Action::"org.freedesktop.systemd1.manage-unit-files"
+};
+
+// Implied by org.freedesktop.portable1.attach-images, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.systemd1.reload-daemon/implied-by/org.freedesktop.portable1.attach-images/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.systemd1.reload-daemon",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.portable1.admin" &&
+  context.auth.action == Action::"org.freedesktop.portable1.attach-images"
+};
+
+// Implied by org.freedesktop.systemd1.manage-unit-files, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.systemd1.reload-daemon/implied-by/org.freedesktop.systemd1.manage-unit-files/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.systemd1.reload-daemon",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.systemd1.admin" &&
+  context.auth.action == Action::"org.freedesktop.systemd1.manage-unit-files"
+};

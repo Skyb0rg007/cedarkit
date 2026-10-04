@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for any session.
+@id("org.freedesktop.locale1/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -10,4 +11,19 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.locale1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
+
+// Implied by org.freedesktop.locale1.set-locale, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.locale1.set-keyboard/implied-by/org.freedesktop.locale1.set-locale/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.locale1.set-keyboard",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.locale1.admin" &&
+  context.auth.action == Action::"org.freedesktop.locale1.set-locale"
+};

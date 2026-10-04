@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Allowed for any session.
+@id("org.freedesktop.login1/yes/any")
 permit (
   principal,
   action in [
@@ -14,6 +15,7 @@ permit (
 );
 
 // Allowed for local sessions.
+@id("org.freedesktop.login1/yes/inactive")
 permit (
   principal,
   action in [
@@ -28,9 +30,15 @@ permit (
   ],
   resource
 )
-when { context.local };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
 
 // Allowed for active local sessions.
+@id("org.freedesktop.login1/yes/active")
 permit (
   principal,
   action in [
@@ -49,9 +57,16 @@ permit (
   ],
   resource
 )
-when { context.local && context.active };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for any session.
+@id("org.freedesktop.login1/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -86,4 +101,649 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-delay-shutdown/implied-by/org.freedesktop.login1.inhibit-block-shutdown/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-shutdown",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-shutdown"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-delay-shutdown/implied-by/org.freedesktop.login1.inhibit-block-shutdown/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-shutdown",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-block-sleep/implied-by/org.freedesktop.login1.inhibit-block-shutdown/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-sleep",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-shutdown"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-block-sleep/implied-by/org.freedesktop.login1.inhibit-block-shutdown/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-sleep",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-delay-sleep/implied-by/org.freedesktop.login1.inhibit-block-shutdown/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-sleep",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-shutdown"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-delay-sleep/implied-by/org.freedesktop.login1.inhibit-block-shutdown/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-sleep",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-delay-shutdown, allowed, for any session.
+@id("org.freedesktop.login1.inhibit-delay-sleep/implied-by/org.freedesktop.login1.inhibit-delay-shutdown/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-sleep",
+  resource
+);
+
+// Implied by org.freedesktop.login1.inhibit-block-sleep, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-delay-sleep/implied-by/org.freedesktop.login1.inhibit-block-sleep/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-sleep",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-sleep"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-sleep, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-delay-sleep/implied-by/org.freedesktop.login1.inhibit-block-sleep/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-delay-sleep",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-block-idle/implied-by/org.freedesktop.login1.inhibit-block-shutdown/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-idle",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-shutdown"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-shutdown, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-block-idle/implied-by/org.freedesktop.login1.inhibit-block-shutdown/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-idle",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-sleep, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.inhibit-block-idle/implied-by/org.freedesktop.login1.inhibit-block-sleep/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-idle",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.inhibit-block-sleep"
+};
+
+// Implied by org.freedesktop.login1.inhibit-block-sleep, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-block-idle/implied-by/org.freedesktop.login1.inhibit-block-sleep/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-block-idle",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-power-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-suspend-key/implied-by/org.freedesktop.login1.inhibit-handle-power-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-suspend-key",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-reboot-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-suspend-key/implied-by/org.freedesktop.login1.inhibit-handle-reboot-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-suspend-key",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-power-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-hibernate-key/implied-by/org.freedesktop.login1.inhibit-handle-power-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-hibernate-key",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-suspend-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-hibernate-key/implied-by/org.freedesktop.login1.inhibit-handle-suspend-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-hibernate-key",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-reboot-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-hibernate-key/implied-by/org.freedesktop.login1.inhibit-handle-reboot-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-hibernate-key",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-power-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-lid-switch/implied-by/org.freedesktop.login1.inhibit-handle-power-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-lid-switch",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-suspend-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-lid-switch/implied-by/org.freedesktop.login1.inhibit-handle-suspend-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-lid-switch",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.inhibit-handle-reboot-key, allowed, for local sessions.
+@id("org.freedesktop.login1.inhibit-handle-lid-switch/implied-by/org.freedesktop.login1.inhibit-handle-reboot-key/inactive")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.inhibit-handle-lid-switch",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat))
+};
+
+// Implied by org.freedesktop.login1.attach-device, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.flush-devices/implied-by/org.freedesktop.login1.attach-device/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.flush-devices",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.attach-device"
+};
+
+// Implied by org.freedesktop.login1.power-off-multiple-sessions, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.power-off/implied-by/org.freedesktop.login1.power-off-multiple-sessions/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.power-off",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.power-off-multiple-sessions"
+};
+
+// Implied by org.freedesktop.login1.power-off-multiple-sessions, allowed, for active local sessions.
+@id("org.freedesktop.login1.power-off/implied-by/org.freedesktop.login1.power-off-multiple-sessions/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.power-off",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.power-off-ignore-inhibit, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.power-off/implied-by/org.freedesktop.login1.power-off-ignore-inhibit/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.power-off",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.power-off-ignore-inhibit"
+};
+
+// Implied by org.freedesktop.login1.reboot-multiple-sessions, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.reboot-multiple-sessions/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.reboot-multiple-sessions"
+};
+
+// Implied by org.freedesktop.login1.reboot-multiple-sessions, allowed, for active local sessions.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.reboot-multiple-sessions/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.reboot-ignore-inhibit, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.reboot-ignore-inhibit/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.reboot-ignore-inhibit"
+};
+
+// Implied by org.freedesktop.login1.set-reboot-parameter, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-parameter/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.set-reboot-parameter"
+};
+
+// Implied by org.freedesktop.login1.set-reboot-parameter, allowed, for active local sessions.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-parameter/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-firmware-setup, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-firmware-setup/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.set-reboot-to-firmware-setup"
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-firmware-setup, allowed, for active local sessions.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-firmware-setup/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-boot-loader-menu, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-boot-loader-menu/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.set-reboot-to-boot-loader-menu"
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-boot-loader-menu, allowed, for active local sessions.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-boot-loader-menu/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-boot-loader-entry, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-boot-loader-entry/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.set-reboot-to-boot-loader-entry"
+};
+
+// Implied by org.freedesktop.login1.set-reboot-to-boot-loader-entry, allowed, for active local sessions.
+@id("org.freedesktop.login1.reboot/implied-by/org.freedesktop.login1.set-reboot-to-boot-loader-entry/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.reboot",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.halt-multiple-sessions, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.halt/implied-by/org.freedesktop.login1.halt-multiple-sessions/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.halt",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.halt-multiple-sessions"
+};
+
+// Implied by org.freedesktop.login1.halt-ignore-inhibit, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.halt/implied-by/org.freedesktop.login1.halt-ignore-inhibit/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.halt",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.halt-ignore-inhibit"
+};
+
+// Implied by org.freedesktop.login1.suspend-multiple-sessions, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.suspend/implied-by/org.freedesktop.login1.suspend-multiple-sessions/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.suspend",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.suspend-multiple-sessions"
+};
+
+// Implied by org.freedesktop.login1.suspend-multiple-sessions, allowed, for active local sessions.
+@id("org.freedesktop.login1.suspend/implied-by/org.freedesktop.login1.suspend-multiple-sessions/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.suspend",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.suspend-ignore-inhibit, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.suspend/implied-by/org.freedesktop.login1.suspend-ignore-inhibit/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.suspend",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.suspend-ignore-inhibit"
+};
+
+// Implied by org.freedesktop.login1.hibernate-multiple-sessions, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.hibernate/implied-by/org.freedesktop.login1.hibernate-multiple-sessions/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.hibernate",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.hibernate-multiple-sessions"
+};
+
+// Implied by org.freedesktop.login1.hibernate-multiple-sessions, allowed, for active local sessions.
+@id("org.freedesktop.login1.hibernate/implied-by/org.freedesktop.login1.hibernate-multiple-sessions/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.hibernate",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.hibernate-ignore-inhibit, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.hibernate/implied-by/org.freedesktop.login1.hibernate-ignore-inhibit/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.hibernate",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.hibernate-ignore-inhibit"
+};
+
+// Implied by org.freedesktop.login1.power-off, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.set-wall-message/implied-by/org.freedesktop.login1.power-off/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.set-wall-message",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.power-off"
+};
+
+// Implied by org.freedesktop.login1.power-off, allowed, for active local sessions.
+@id("org.freedesktop.login1.set-wall-message/implied-by/org.freedesktop.login1.power-off/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.set-wall-message",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.reboot, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.set-wall-message/implied-by/org.freedesktop.login1.reboot/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.set-wall-message",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.reboot"
+};
+
+// Implied by org.freedesktop.login1.reboot, allowed, for active local sessions.
+@id("org.freedesktop.login1.set-wall-message/implied-by/org.freedesktop.login1.reboot/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.set-wall-message",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
+
+// Implied by org.freedesktop.login1.halt, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.login1.set-wall-message/implied-by/org.freedesktop.login1.halt/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.login1.set-wall-message",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == Action::"org.freedesktop.login1.halt"
+};

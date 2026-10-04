@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Allowed for active local sessions.
+@id("org.freedesktop.machine1/yes/active")
 permit (
   principal,
   action in [
@@ -10,9 +11,16 @@ permit (
   ],
   resource
 )
-when { context.local && context.active };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for active local sessions.
+@id("org.freedesktop.machine1/auth_admin_keep/active")
 permit (
   principal,
   action in [
@@ -29,10 +37,20 @@ permit (
   ],
   resource
 )
-when { context.local && context.active }
-when { context.auth.identity == "admin" };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.machine1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
 
 // Requires auth_admin for any session.
+@id("org.freedesktop.machine1/auth_admin/any")
 permit (
   principal,
   action in [
@@ -51,4 +69,63 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" && context.auth.fresh };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.machine1.admin" && context.auth.fresh
+};
+
+// Implied by org.freedesktop.machine1.manage-machines, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.machine1.inspect-machines/implied-by/org.freedesktop.machine1.manage-machines/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.machine1.inspect-machines",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.machine1.admin" &&
+  context.auth.action == Action::"org.freedesktop.machine1.manage-machines"
+};
+
+// Implied by org.freedesktop.machine1.create-machine, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.machine1.register-machine/implied-by/org.freedesktop.machine1.create-machine/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.machine1.register-machine",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.machine1.admin" &&
+  context.auth.action == Action::"org.freedesktop.machine1.create-machine"
+};
+
+// Implied by org.freedesktop.machine1.manage-images, remembered for it (auth_admin_keep), for active local sessions.
+@id("org.freedesktop.machine1.inspect-images/implied-by/org.freedesktop.machine1.manage-images/active")
+permit (
+  principal,
+  action == Action::"org.freedesktop.machine1.inspect-images",
+  resource
+)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.machine1.admin" &&
+  context.auth.action == Action::"org.freedesktop.machine1.manage-images"
+};

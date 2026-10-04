@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/cedarkit-core", "crates/cedarkitd", "crates/cedarctl"]
+members = [
+    "crates/cedarkit-core",
+    "crates/cedarkit-logind",
+    "crates/cedarkitd",
+    "crates/cedarctl",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,8 +14,9 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 cedarkit-core = { path = "crates/cedarkit-core" }
+cedarkit-logind = { path = "crates/cedarkit-logind" }
 anyhow = "1"
-cedar-policy = { version = "=4.13.0", features = ["tpe"] }
+cedar-policy = "=4.13.0"
 clap = { version = "4.6", features = ["derive"] }
 serde_json = "1"
 nix = { version = "0.31", features = ["user"] }

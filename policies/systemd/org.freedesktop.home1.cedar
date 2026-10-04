@@ -2,14 +2,22 @@
 // Do not edit; regenerate instead.
 
 // Allowed for active local sessions.
+@id("org.freedesktop.home1/yes/active")
 permit (
   principal,
   action == Action::"org.freedesktop.home1.update-home-by-owner",
   resource
 )
-when { context.local && context.active };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for any session.
+@id("org.freedesktop.home1/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -25,4 +33,7 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.home1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};

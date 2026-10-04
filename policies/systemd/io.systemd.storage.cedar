@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for active local sessions.
+@id("io.systemd.storage/auth_admin_keep/active")
 permit (
   principal,
   action in [
@@ -10,10 +11,20 @@ permit (
   ],
   resource
 )
-when { context.local && context.active }
-when { context.auth.identity == "admin" };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+}
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.storage.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
 
 // Requires auth_admin for any session.
+@id("io.systemd.storage/auth_admin/any")
 permit (
   principal,
   action in [
@@ -22,4 +33,6 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" && context.auth.fresh };
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.storage.admin" && context.auth.fresh
+};

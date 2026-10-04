@@ -4,27 +4,27 @@
 @doc("Import a disk image")
 action "org.freedesktop.import1.import" appliesTo {
   principal: [User],
-  resource: [Image],
-  context: SessionContext,
+  resource: [systemd::Image],
+  context: Context,
 };
 
 @doc("Export a disk image")
 action "org.freedesktop.import1.export" appliesTo {
   principal: [User],
-  resource: [Image],
-  context: SessionContext,
+  resource: [systemd::Image],
+  context: Context,
 };
 
 @doc("Download a disk image")
 action "org.freedesktop.import1.pull" appliesTo {
   principal: [User],
-  resource: [Image, ImagePool],
-  context: SessionContext,
+  resource: [systemd::Image, systemd::ImagePool],
+  context: Context,
 };
 
 @doc("Cancel transfer of a disk image")
 action "org.freedesktop.import1.cancel" appliesTo {
   principal: [User],
-  resource: [Transfer],
-  context: SessionContext,
+  resource: [systemd::Transfer],
+  context: Context,
 };

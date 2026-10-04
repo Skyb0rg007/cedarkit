@@ -2,17 +2,28 @@
 // Do not edit; regenerate instead.
 
 // Allowed for active local sessions.
+@id("io.systemd.ask-password/yes/active")
 permit (
   principal,
   action == Action::"io.systemd.ask-password.ask",
   resource
 )
-when { context.local && context.active };
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for any session.
+@id("io.systemd.ask-password/auth_admin_keep/any")
 permit (
   principal,
   action == Action::"io.systemd.ask-password.ask",
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"io.systemd.ask-password.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};

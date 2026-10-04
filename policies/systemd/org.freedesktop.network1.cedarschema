@@ -4,120 +4,120 @@
 @doc("Set NTP servers")
 action "org.freedesktop.network1.set-ntp-servers" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set DNS servers")
 action "org.freedesktop.network1.set-dns-servers" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set domains")
 action "org.freedesktop.network1.set-domains" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set default route")
 action "org.freedesktop.network1.set-default-route" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable LLMNR")
 action "org.freedesktop.network1.set-llmnr" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable multicast DNS")
 action "org.freedesktop.network1.set-mdns" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable DNS over TLS")
 action "org.freedesktop.network1.set-dns-over-tls" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable DNSSEC")
 action "org.freedesktop.network1.set-dnssec" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set DNSSEC Negative Trust Anchors")
 action "org.freedesktop.network1.set-dnssec-negative-trust-anchors" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Revert NTP settings")
 action "org.freedesktop.network1.revert-ntp" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Revert DNS settings")
 action "org.freedesktop.network1.revert-dns" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("DHCP server sends force renew message")
 action "org.freedesktop.network1.forcerenew" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Renew dynamic addresses")
 action "org.freedesktop.network1.renew" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Reload network settings")
-@singleton("NetworkConfig::\"system\"")
+@singleton("systemd::NetworkConfig::\"system\"")
 action "org.freedesktop.network1.reload" appliesTo {
   principal: [User],
-  resource: [NetworkConfig],
-  context: SessionContext,
+  resource: [systemd::NetworkConfig],
+  context: Context,
 };
 
 @doc("Reconfigure network interface")
 action "org.freedesktop.network1.reconfigure" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Specify whether persistent storage for systemd-networkd is available")
-@singleton("NetworkConfig::\"system\"")
+@singleton("systemd::NetworkConfig::\"system\"")
 action "org.freedesktop.network1.set-persistent-storage" appliesTo {
   principal: [User],
-  resource: [NetworkConfig],
-  context: SessionContext,
+  resource: [systemd::NetworkConfig],
+  context: Context,
 };
 
 @doc("Manage network links")
 action "org.freedesktop.network1.manage-links" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };

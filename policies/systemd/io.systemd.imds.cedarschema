@@ -4,6 +4,6 @@
 @doc("Acquire IMDS instance metadata.")
 action "io.systemd.imds.get" appliesTo {
   principal: [User],
-  resource: [InstanceMetadata],
-  context: SessionContext,
+  resource: [systemd::InstanceMetadata],
+  context: Context,
 };

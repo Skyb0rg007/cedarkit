@@ -2,65 +2,64 @@
 // Do not edit; regenerate instead.
 
 @doc("Create a home area")
-@singleton("System::\"local\"")
 action "org.freedesktop.home1.create-home" appliesTo {
   principal: [User],
-  resource: [Home, ImageFile],
-  context: SessionContext,
+  resource: [systemd::Home, systemd::ImageFile],
+  context: Context,
 };
 
 @doc("Remove a home area")
 action "org.freedesktop.home1.remove-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Check credentials of a home area")
 action "org.freedesktop.home1.authenticate-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Update a home area")
 action "org.freedesktop.home1.update-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Update your home area")
 action "org.freedesktop.home1.update-home-by-owner" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Resize a home area")
 action "org.freedesktop.home1.resize-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Change password of a home area")
 action "org.freedesktop.home1.passwd-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Activate a home area")
 action "org.freedesktop.home1.activate-home" appliesTo {
   principal: [User],
-  resource: [Home],
-  context: SessionContext,
+  resource: [systemd::Home],
+  context: Context,
 };
 
 @doc("Manage Home Directory Signing Keys")
 action "org.freedesktop.home1.manage-signing-keys" appliesTo {
   principal: [User],
-  resource: [SigningKey],
-  context: SessionContext,
+  resource: [systemd::SigningKey],
+  context: Context,
 };

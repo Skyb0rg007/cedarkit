@@ -4,140 +4,140 @@
 @doc("Register a DNS-SD service")
 action "org.freedesktop.resolve1.register-service" appliesTo {
   principal: [User],
-  resource: [DnssdService],
-  context: SessionContext,
+  resource: [systemd::DnssdService],
+  context: Context,
 };
 
 @doc("Unregister a DNS-SD service")
 action "org.freedesktop.resolve1.unregister-service" appliesTo {
   principal: [User],
-  resource: [DnssdService],
-  context: SessionContext,
+  resource: [systemd::DnssdService],
+  context: Context,
 };
 
 @doc("Set DNS servers")
 action "org.freedesktop.resolve1.set-dns-servers" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set domains")
 action "org.freedesktop.resolve1.set-domains" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set default route")
 action "org.freedesktop.resolve1.set-default-route" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable LLMNR")
 action "org.freedesktop.resolve1.set-llmnr" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable multicast DNS")
 action "org.freedesktop.resolve1.set-mdns" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable DNS over TLS")
 action "org.freedesktop.resolve1.set-dns-over-tls" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Enable/disable DNSSEC")
 action "org.freedesktop.resolve1.set-dnssec" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Set DNSSEC Negative Trust Anchors")
 action "org.freedesktop.resolve1.set-dnssec-negative-trust-anchors" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Revert name resolution settings")
 action "org.freedesktop.resolve1.revert" appliesTo {
   principal: [User],
-  resource: [Link],
-  context: SessionContext,
+  resource: [systemd::Link],
+  context: Context,
 };
 
 @doc("Subscribe query results")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.subscribe-query-results" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Subscribe to DNS configuration")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.subscribe-dns-configuration" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Dump cache")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-cache" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Dump server state")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-server-state" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Dump statistics")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-statistics" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Reset statistics")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.reset-statistics" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Flush DNS caches")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.flush-caches" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };
 
 @doc("Reset server features")
-@singleton("Resolver::\"system\"")
+@singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.reset-server-features" appliesTo {
   principal: [User],
-  resource: [Resolver],
-  context: SessionContext,
+  resource: [systemd::Resolver],
+  context: Context,
 };

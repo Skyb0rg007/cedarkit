@@ -2,6 +2,7 @@
 // Do not edit; regenerate instead.
 
 // Requires auth_admin_keep for any session.
+@id("org.freedesktop.hostname1/auth_admin_keep/any")
 permit (
   principal,
   action in [
@@ -14,4 +15,31 @@ permit (
   ],
   resource
 )
-when { context.auth.identity == "admin" };
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.hostname1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
+
+// Implied by org.freedesktop.hostname1.set-static-hostname, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.hostname1.set-hostname/implied-by/org.freedesktop.hostname1.set-static-hostname/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.hostname1.set-hostname",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.hostname1.admin" &&
+  context.auth.action == Action::"org.freedesktop.hostname1.set-static-hostname"
+};
+
+// Implied by org.freedesktop.hostname1.set-static-hostname, remembered for it (auth_admin_keep), for any session.
+@id("org.freedesktop.hostname1.set-machine-info/implied-by/org.freedesktop.hostname1.set-static-hostname/any")
+permit (
+  principal,
+  action == Action::"org.freedesktop.hostname1.set-machine-info",
+  resource
+)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.hostname1.admin" &&
+  context.auth.action == Action::"org.freedesktop.hostname1.set-static-hostname"
+};

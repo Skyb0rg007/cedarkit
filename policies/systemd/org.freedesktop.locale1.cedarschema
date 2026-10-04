@@ -3,17 +3,17 @@
 
 @doc("Set system locale")
 @implies("org.freedesktop.locale1.set-keyboard")
-@singleton("Locale::\"system\"")
+@singleton("systemd::Locale::\"system\"")
 action "org.freedesktop.locale1.set-locale" appliesTo {
   principal: [User],
-  resource: [Locale],
-  context: SessionContext,
+  resource: [systemd::Locale],
+  context: Context,
 };
 
 @doc("Set system keyboard settings")
-@singleton("Keyboard::\"system\"")
+@singleton("systemd::Keyboard::\"system\"")
 action "org.freedesktop.locale1.set-keyboard" appliesTo {
   principal: [User],
-  resource: [Keyboard],
-  context: SessionContext,
+  resource: [systemd::Keyboard],
+  context: Context,
 };

@@ -2,33 +2,33 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow managing (merging, unmerging, ...) of system extension images.")
-@singleton("ExtensionHierarchy::\"sysext\"")
+@singleton("systemd::ExtensionHierarchy::\"sysext\"")
 action "io.systemd.sysext.manage" appliesTo {
   principal: [User],
-  resource: [ExtensionHierarchy],
-  context: SessionContext,
+  resource: [systemd::ExtensionHierarchy],
+  context: Context,
 };
 
 @doc("Allow reading (listing, ...) of system extension images.")
-@singleton("ExtensionHierarchy::\"sysext\"")
+@singleton("systemd::ExtensionHierarchy::\"sysext\"")
 action "io.systemd.sysext.read" appliesTo {
   principal: [User],
-  resource: [ExtensionHierarchy],
-  context: SessionContext,
+  resource: [systemd::ExtensionHierarchy],
+  context: Context,
 };
 
 @doc("Allow managing (merging, unmerging, ...) of configuration extension images.")
-@singleton("ExtensionHierarchy::\"confext\"")
+@singleton("systemd::ExtensionHierarchy::\"confext\"")
 action "io.systemd.confext.manage" appliesTo {
   principal: [User],
-  resource: [ExtensionHierarchy],
-  context: SessionContext,
+  resource: [systemd::ExtensionHierarchy],
+  context: Context,
 };
 
 @doc("Allow reading (listing, ...) of configuration extension images.")
-@singleton("ExtensionHierarchy::\"confext\"")
+@singleton("systemd::ExtensionHierarchy::\"confext\"")
 action "io.systemd.confext.read" appliesTo {
   principal: [User],
-  resource: [ExtensionHierarchy],
-  context: SessionContext,
+  resource: [systemd::ExtensionHierarchy],
+  context: Context,
 };

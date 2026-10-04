@@ -4,6 +4,6 @@
 @doc("Enroll an unlock mechanism into an encrypted volume")
 action "io.systemd.cryptenroll.enroll" appliesTo {
   principal: [User],
-  resource: [Device],
-  context: SessionContext,
+  resource: [systemd::Device],
+  context: Context,
 };
