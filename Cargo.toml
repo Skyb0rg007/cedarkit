@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/cedarkit-agent",
     "crates/cedarkit-agent-protocol",
+    "crates/cedarkit-cli-agent",
     "crates/cedarkit-core",
     "crates/cedarkit-logind",
     "crates/cedarkitd",

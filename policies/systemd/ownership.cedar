@@ -51,7 +51,7 @@ permit (
   ],
   resource is systemd::Machine
 )
-when { resource.owner == principal };
+when { resource has owner && resource.owner == principal };
 
 // ...and stop, kill or unregister it, but not bind-mount into it, copy
 // files in or out, or open its root directory.
@@ -62,7 +62,7 @@ permit (
   resource is systemd::Machine
 )
 when {
-  resource.owner == principal &&
+  resource has owner && resource.owner == principal &&
   context.details has verb &&
   ["unregister", "terminate", "kill"].contains(context.details.verb)
 };
@@ -74,7 +74,7 @@ permit (
   action == Action::"org.freedesktop.resolve1.unregister-service",
   resource is systemd::DnssdService
 )
-when { resource.owner == principal };
+when { resource has owner && resource.owner == principal };
 
 // A user's own ask-password instance answers that user.
 @id("systemd/ownership/ask-password")

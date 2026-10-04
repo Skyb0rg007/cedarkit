@@ -89,6 +89,9 @@ pub(crate) struct ResourceType {
     pub detail: Option<String>,
     /// The attributes details supply.
     pub attrs: Vec<DetailAttr>,
+    /// Whether it has required attributes no detail supplies, which
+    /// CedarKit fills in itself, as for `logind::Session`.
+    pub filled_in: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -511,8 +514,14 @@ fn resource_type(types: &Types, decl: &Value, ns: &str) -> ResourceType {
             })
         })
         .collect();
+    let filled_in = decl["shape"]["attributes"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .any(|(_, ty)| ty["required"] != false && ty["annotations"].get("detail").is_none());
     ResourceType {
         detail: decl["annotations"]["detail"].as_str().map(str::to_owned),
         attrs,
+        filled_in,
     }
 }

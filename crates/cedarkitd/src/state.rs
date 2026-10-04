@@ -11,7 +11,7 @@ use std::time::Instant;
 use cedarkit_agent_protocol::Identity;
 use cedarkit_core::{
     AuthStore, Authentication, Authority, CheckRequest, Decision, Directory, Holder, Nss, Outcome,
-    ProcessId, Subject, User,
+    ProcessId, Remembered, Subject, User,
 };
 use cedarkit_logind::Logind;
 use zbus::fdo;
@@ -20,7 +20,7 @@ use zbus::zvariant::{OwnedValue, Value};
 
 use crate::agents::{AgentRequest, Agents};
 use crate::cancel::{self, Cancellations, Registration};
-use crate::siblings::siblings;
+use crate::siblings::{Family, family, siblings};
 
 /// A polkit-style subject: a kind, and its details.
 pub type SubjectArg = (String, HashMap<String, OwnedValue>);
@@ -37,6 +37,12 @@ pub struct State {
     /// Notified when remembered authentications change, for polkit's
     /// `Changed` signal.
     pub changed: tokio::sync::Notify,
+    /// Make up resources from missing polkit details, for mechanisms that
+    /// don't pass them yet, such as unpatched systemd.
+    pub fill_missing_details: bool,
+    /// For each remembered authentication's process, by id, what identifies
+    /// its siblings, recorded when it was remembered.
+    pub families: Mutex<HashMap<String, Family>>,
 }
 
 /// A process, and who it runs as.
@@ -74,17 +80,6 @@ impl Target {
         match self {
             Self::Process(p) => Holder::Process(p.id),
             Self::Session { id, .. } => Holder::Session(id.clone()),
-        }
-    }
-
-    /// Whether an authentication remembered for `holder` counts for this
-    /// target: its own, or as polkit, one of a sibling process in the same
-    /// terminal.
-    fn shares(&self, holder: &Holder) -> bool {
-        match (self, holder) {
-            (Self::Process(p), Holder::Process(q)) => p.id == *q || siblings(p.id, *q),
-            (Self::Session { id, .. }, Holder::Session(other)) => id == other,
-            _ => false,
         }
     }
 }
@@ -291,7 +286,9 @@ impl State {
         mut details: HashMap<String, String>,
     ) -> Decided {
         let process = target.process();
-        let remembered = self.store().lookup(Instant::now(), |h| target.shares(h));
+        let remembered = self
+            .store()
+            .lookup(Instant::now(), |r| self.shares(target, r));
         request.authentications = remembered.iter().map(|r| r.auth.clone()).collect();
         let mut outcome = self.authority.check(&request);
         let mut decided = Decided {
@@ -392,8 +389,7 @@ impl State {
 
     /// Checks again once `uid` has authenticated, and if `keep`, remembers
     /// the authentication as polkit's temporary authorizations: for the
-    /// target, for its session's agent, until it expires or the process
-    /// exits.
+    /// target, for its session's agent, until it expires.
     fn authenticated(
         self: &Arc<Self>,
         request: &mut CheckRequest,
@@ -409,12 +405,16 @@ impl State {
         if outcome.decision != Decision::Allow || !keep {
             return outcome;
         }
+        let family = target.process().and_then(family);
         let id = self.store().remember(
             target.holder(),
             Some(session.to_owned()),
             auth,
             Instant::now(),
         );
+        if let Some(family) = family {
+            self.families().insert(id.clone(), family);
+        }
         tracing::info!(
             id,
             uid,
@@ -425,27 +425,42 @@ impl State {
         decided.temporary = Some(id.clone());
         self.changed.notify_one();
 
-        // Forget it when it expires, or the process exits, telling polkit's
-        // clients.
-        let (state, process) = (self.clone(), target.process());
+        // Forget it when it expires, telling polkit's clients. As polkit,
+        // not when the process exits: its siblings may still use it.
+        let state = self.clone();
         let lifetime = self.store().lifetime();
         tokio::spawn(async move {
-            let exited = async {
-                match process {
-                    Some(process) => cancel::process_exited(process).await,
-                    None => std::future::pending().await,
-                }
-            };
-            tokio::select! {
-                () = tokio::time::sleep(lifetime) => {}
-                () = exited => {}
-            }
+            tokio::time::sleep(lifetime).await;
+            state.families().remove(&id);
             if state.store().revoke(&id) {
                 tracing::debug!(id, "forgot the authentication");
                 state.changed.notify_one();
             }
         });
         outcome
+    }
+
+    /// Whether a remembered authentication counts for `target`: its own, or
+    /// as polkit, one remembered for a sibling process in the same terminal,
+    /// even if that has since exited.
+    fn shares(&self, target: &Target, remembered: &Remembered) -> bool {
+        match (target, &remembered.holder) {
+            (Target::Process(p), Holder::Process(q)) => {
+                p.id == *q
+                    || self
+                        .families()
+                        .get(&remembered.id)
+                        .is_some_and(|family| siblings(family, p.id))
+            }
+            (Target::Session { id, .. }, Holder::Session(other)) => id == other,
+            _ => false,
+        }
+    }
+
+    fn families(&self) -> std::sync::MutexGuard<'_, HashMap<String, Family>> {
+        self.families
+            .lock()
+            .expect("the families' lock isn't poisoned")
     }
 
     pub fn store(&self) -> std::sync::MutexGuard<'_, AuthStore> {

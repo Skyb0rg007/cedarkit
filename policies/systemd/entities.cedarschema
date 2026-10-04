@@ -51,9 +51,10 @@ namespace systemd {
   @detail("machine")
   entity Machine {
     // machined lets whoever registered a machine (root for `.host`) log in,
-    // and stop, kill or unregister it, without polkit.
+    // and stop, kill or unregister it, without polkit. Unknown when systemd
+    // doesn't say: unpatched systemd checks the owner itself.
     @detail("owner_uid")
-    owner: User,
+    owner?: User,
   };
 
   // An image pool: `machine`, `portable`, `sysext`, `confext`. Also the
@@ -100,9 +101,9 @@ namespace systemd {
   @detail("dnssd_service")
   entity DnssdService {
     // resolved lets whoever registered a service (root for .dnssd files)
-    // unregister it without polkit.
+    // unregister it without polkit. Unknown when systemd doesn't say.
     @detail("owner_uid")
-    owner: User,
+    owner?: User,
   };
 
   // systemd-timesyncd's runtime NTP server list.

@@ -379,6 +379,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "cedarkit-cli-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cedarkit-agent-protocol",
+ "clap",
+ "futures-util",
+ "nix",
+ "serde_json",
+ "tokio",
+ "zlink",
+]
+
+[[package]]
 name = "cedarkit-core"
 version = "0.1.0"
 dependencies = [

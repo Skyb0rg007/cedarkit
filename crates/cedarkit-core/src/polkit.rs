@@ -120,10 +120,20 @@ impl Authority {
     /// that the action's `@singleton`. Users are identified by the `uid`
     /// detail; types whose attributes CedarKit fills in itself, such as
     /// `logind::Session`, only need their id.
+    ///
+    /// With `fill_missing`, for mechanisms that don't pass the details yet
+    /// (such as unpatched systemd), a resource is made up rather than the
+    /// check failing: missing details are taken to be empty strings. Users,
+    /// and types CedarKit fills in itself such as `logind::Session`, can't
+    /// be made up, so they're skipped, as are types needing a missing attribute that isn't a
+    /// string. polkit's defaults don't depend on the resource, so these
+    /// decide as polkit would; policies that look at the resource, such as
+    /// ownership rules, see only what the details said.
     pub fn polkit_resource(
         &self,
         action: &str,
         details: &HashMap<String, String>,
+        fill_missing: bool,
     ) -> Result<Resource> {
         let info = self
             .decls
@@ -131,24 +141,33 @@ impl Authority {
             .get(action)
             .ok_or_else(|| Error::Request(format!("action {action:?} isn't declared")))?;
         for ty in &info.resource_types {
-            if let Some(resource) = self.resource_from_details(ty, details)? {
+            if let Some(resource) = self.resource_from_details(ty, details, false)? {
                 return Ok(resource);
             }
         }
-        match &info.singleton {
-            Some(uid) => Ok(Resource::new(uid.clone())),
-            None => Err(Error::Request(format!(
-                "the details don't say which resource {action} acts on"
-            ))),
+        if let Some(uid) = &info.singleton {
+            return Ok(Resource::new(uid.clone()));
         }
+        if fill_missing {
+            for ty in &info.resource_types {
+                if let Some(resource) = self.resource_from_details(ty, details, true)? {
+                    tracing::debug!(action, resource = %resource.uid, "made up from missing details");
+                    return Ok(resource);
+                }
+            }
+        }
+        Err(Error::Request(format!(
+            "the details don't say which resource {action} acts on"
+        )))
     }
 
     /// A resource of type `ty` from the details, or `None` if they don't
-    /// describe one.
+    /// describe one. With `fill_missing`, missing details are empty strings.
     fn resource_from_details(
         &self,
         ty: &str,
         details: &HashMap<String, String>,
+        fill_missing: bool,
     ) -> Result<Option<Resource>> {
         if ty == "User" {
             return details
@@ -159,8 +178,13 @@ impl Authority {
         let Some(rt) = self.decls.resource_types.get(ty) else {
             return Ok(None);
         };
-        let Some(id) = rt.detail.as_deref().and_then(|d| expand(d, details)) else {
+        let Some(template) = rt.detail.as_deref() else {
             return Ok(None);
+        };
+        let id = match expand(template, details) {
+            Some(id) => id,
+            None if fill_missing && !rt.filled_in => expand_or_empty(template, details),
+            None => return Ok(None),
         };
         let mut resource = Resource::new(entity_uid(ty, &id)?);
         for attr in &rt.attrs {
@@ -174,12 +198,37 @@ impl Authority {
                     })?;
                     resource = resource.with_attr(attr.name.clone(), value);
                 }
+                None if attr.required && fill_missing && attr.ty == DetailType::String => {
+                    resource =
+                        resource.with_attr(attr.name.clone(), AttrValue::String(String::new()));
+                }
                 None if attr.required => return Ok(None),
                 None => {}
             }
         }
         Ok(Some(resource))
     }
+}
+
+/// Fills in a template as [`expand`] does, with empty strings for missing
+/// details.
+fn expand_or_empty(template: &str, details: &HashMap<String, String>) -> String {
+    let get = |key: &str| details.get(key).cloned().unwrap_or_default();
+    if !template.contains('{') {
+        return get(template);
+    }
+    let mut out = String::new();
+    let mut rest = template;
+    while let Some(start) = rest.find('{') {
+        out.push_str(&rest[..start]);
+        let Some(end) = rest[start..].find('}').map(|e| e + start) else {
+            break;
+        };
+        out.push_str(&get(&rest[start + 1..end]));
+        rest = &rest[end + 1..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Fills in a `@detail` template: either a detail's name, or a pattern

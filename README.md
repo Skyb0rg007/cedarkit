@@ -25,6 +25,8 @@ cargo test
 | `crates/cedarkitd`           | The daemon: `org.cedarkit.Authority1` on D-Bus, `org.cedarkit.Agent` on Varlink, and `cedarkit-pam-helper` |
 | `crates/cedarkit-agent`      | `cedarkit-agent`, a GTK authentication agent after GNOME Shell's   |
 | `crates/cedarkit-agent-protocol` | The `org.cedarkit.Agent` Varlink interface                     |
+| `crates/cedarkit-cli-agent`  | `cedarkit-cli-agent`, an agent driven from the command line, for testing |
+| `nix/`                       | The Nix package, a NixOS module (`services.cedarkit`), and NixOS VM tests |
 | `crates/cedarctl`            | CLI for checking requests and validating policies                  |
 | `policies/`                  | Vendor files, laid out like `/usr/share/cedarkit`                  |
 | `policies/cedarkit/`         | CedarKit's own: the default admin role                             |
@@ -108,7 +110,7 @@ Agents talk to `cedarkitd` over [Varlink](https://varlink.org/), as `org.cedarki
 
 ### Standing in for polkit
 
-`cedarkitd --polkit` also serves polkit's own D-Bus interface, `org.freedesktop.PolicyKit1`, so unmodified polkit clients (`pkcheck`, systemd, GNOME) and polkit's authentication agents (GNOME Shell's, `pkttyagent`) work with it in place of polkitd. Resources are built from the details mechanisms pass, following the schema's `@detail` annotations, so systemd needs the [patches](#systemd-patches) that pass them; anything that can't be resolved is denied. Install `data/org.freedesktop.PolicyKit1.conf` in place of polkit's bus configuration, and stop polkitd.
+`cedarkitd --polkit` also serves polkit's own D-Bus interface, `org.freedesktop.PolicyKit1`, so unmodified polkit clients (`pkcheck`, systemd, GNOME) and polkit's authentication agents (GNOME Shell's, `pkttyagent`) work with it in place of polkitd. Resources are built from the details mechanisms pass, following the schema's `@detail` annotations, so systemd needs the [patches](#systemd-patches) that pass them; anything that can't be resolved is denied. With `--fill-missing-details`, missing details are taken to be empty strings instead, so unpatched systemd gets polkit's own answers (except lingering, whose resource is a user). Install `data/org.freedesktop.PolicyKit1.conf` in place of polkit's bus configuration, and stop polkitd.
 
 polkit's labels (`auth_self`, `auth_admin_keep`, ...) only exist for polkit compatibility: `auth_self` if the caller is the only option, otherwise `auth_admin`, and `_keep` if remembered authentications would be accepted.
 
@@ -320,6 +322,29 @@ pkcheck --process $$ --action-id org.freedesktop.machine1.shell \
 
 After changing which fact providers are installed, regenerate the subject schema with `cedarctl schema update`.
 
+
+## NixOS
+
+`nix/module.nix` is a NixOS module: `services.cedarkit.enable` runs cedarkitd as a system service, and `services.cedarkit.polkit` has it serve polkit's interface in place of polkitd (with `security.polkit.enable` off), keeping polkit's tools and agent helper. `services.cedarkit.policies` adds the local admin's files.
+
+`nix/tests` boots VMs running it for real, with a user logged in on a console:
+
+| Test | What it covers |
+|------|----------------|
+| `native` | the native interface in real logind sessions; local policies, masking vendor files, and refusing broken or overreaching files |
+| `agent` | `cedarkit-cli-agent` with real PAM: retrying, dismissing, cancelling, siblings sharing a remembered authentication, one agent per session |
+| `polkit` | `pkaction` and `pkcheck` against the polkit-compatible front end |
+| `polkit-agent` | polkit's own text agent and helper, and temporary authorizations |
+| `run0` | `run0 true; run0 true` in a new terminal asks once: polkit's sibling rule, with a precise boot time |
+| `unpatched-systemd` | stock systemd with and without `fillMissingDetails` |
+| `gtk-agent` | the GTK agent in a headless Wayland session |
+
+```sh
+nix-build nix/tests -A native   # one test
+nix-build nix/tests             # all of them
+```
+
+`cedarkit-cli-agent` answers requests from the command line (`--answer`, `--stdin`, `--dismiss`) and reports them as JSON lines, for tests and scripts.
 
 ## Roadmap
 

@@ -341,10 +341,14 @@ impl PolkitAuthority {
             tracing::info!(action = action_id, uid = target.uid(), "denied: {reason}");
             Ok((AuthorizationResult::new(false, false, HashMap::new()),))
         };
-        let mut resource = match state.authority.polkit_resource(&action_id, &details) {
-            Ok(resource) => resource,
-            Err(e) => return not_authorized(e.to_string()),
-        };
+        let mut resource =
+            match state
+                .authority
+                .polkit_resource(&action_id, &details, state.fill_missing_details)
+            {
+                Ok(resource) => resource,
+                Err(e) => return not_authorized(e.to_string()),
+            };
         if let Some(logind) = &state.logind
             && let Err(e) = logind.fill_resource(&mut resource).await
         {
@@ -486,7 +490,8 @@ impl PolkitAuthority {
     }
 
     /// From polkit's socket-activated helper, run for the agent process
-    /// `subject`.
+    /// `subject`. Declared here for introspection; [`PolkitInterface`]
+    /// handles the calls, as polkit's helper sends them.
     async fn authentication_agent_response3(
         &self,
         #[zbus(header)] header: Header<'_>,
@@ -581,4 +586,145 @@ impl PolkitAuthority {
     /// Actions or temporary authorizations changed.
     #[zbus(signal)]
     pub async fn changed(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
+}
+
+/// polkit's interface as served: the generated one, except that
+/// `AuthenticationAgentResponse3` is decoded leniently.
+///
+/// polkit's own helper sends that call's agent subject with a `pidfd`
+/// handle but without passing the file descriptor (polkit 127,
+/// `polkit_authority_authentication_agent_response_with_subject`), so the
+/// handle indexes nothing. polkitd ignores it and falls back to the pid and
+/// start time; zbus would refuse the whole message. So this decodes the call
+/// with placeholder descriptors behind the handles, and ignores a `pidfd`
+/// the message didn't carry.
+pub struct PolkitInterface(pub PolkitAuthority);
+
+/// Decodes a call's body even if its handles index file descriptors it
+/// didn't pass, which are then placeholders.
+fn deserialize_lenient<T>(msg: &zbus::Message) -> zbus::Result<T>
+where
+    T: serde::de::DeserializeOwned + zbus::zvariant::Type,
+{
+    let body = msg.body();
+    let data = body.data();
+    match data.deserialize::<T>() {
+        Ok((value, _)) => return Ok(value),
+        Err(zbus::zvariant::Error::UnknownFd) => {}
+        Err(e) => return Err(e.into()),
+    }
+    let null = std::fs::File::open("/dev/null").map_err(|e| zbus::Error::Failure(e.to_string()))?;
+    // The handles are the sender's descriptor numbers, so small.
+    for count in [32, 256] {
+        let mut fds = Vec::with_capacity(count);
+        for _ in 0..count {
+            fds.push(std::os::fd::OwnedFd::from(
+                null.try_clone()
+                    .map_err(|e| zbus::Error::Failure(e.to_string()))?,
+            ));
+        }
+        let padded =
+            zbus::zvariant::serialized::Data::new_fds(data.bytes().to_vec(), data.context(), fds);
+        match padded.deserialize::<T>() {
+            Ok((value, _)) => return Ok(value),
+            Err(zbus::zvariant::Error::UnknownFd) => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(zbus::Error::Failure(
+        "handles index too many file descriptors".into(),
+    ))
+}
+
+impl PolkitInterface {
+    async fn response3(&self, conn: &zbus::Connection, msg: &zbus::Message) -> Result<()> {
+        let header = msg.header();
+        let (cookie, identity, mut subject): (String, SubjectArg, SubjectArg) =
+            deserialize_lenient(msg)?;
+        // A pidfd the message didn't carry is meaningless.
+        if msg.data().fds().is_empty() {
+            subject.1.remove("pidfd");
+        }
+        let caller = State::bus_process(conn, sender(&header)?.clone().into()).await?;
+        self.0.trusted_caller(&caller)?;
+        let agent = self.0.state.target(conn, &caller, &subject).await?;
+        self.0
+            .agent_response(&header, conn, &cookie, &identity, Some(agent.uid()))
+            .await
+    }
+}
+
+#[zbus::export::async_trait::async_trait]
+impl zbus::object_server::Interface for PolkitInterface {
+    fn name() -> zbus::names::InterfaceName<'static> {
+        <PolkitAuthority as zbus::object_server::Interface>::name()
+    }
+
+    async fn get(
+        &self,
+        property_name: &str,
+        server: &zbus::ObjectServer,
+        connection: &zbus::Connection,
+        header: Option<&Header<'_>>,
+        emitter: &SignalEmitter<'_>,
+    ) -> Option<fdo::Result<OwnedValue>> {
+        self.0
+            .get(property_name, server, connection, header, emitter)
+            .await
+    }
+
+    async fn get_all(
+        &self,
+        server: &zbus::ObjectServer,
+        connection: &zbus::Connection,
+        header: Option<&Header<'_>>,
+        emitter: &SignalEmitter<'_>,
+    ) -> fdo::Result<HashMap<String, OwnedValue>> {
+        self.0.get_all(server, connection, header, emitter).await
+    }
+
+    async fn set_mut(
+        &mut self,
+        property_name: &str,
+        value: &Value<'_>,
+        server: &zbus::ObjectServer,
+        connection: &zbus::Connection,
+        header: Option<&Header<'_>>,
+        emitter: &SignalEmitter<'_>,
+    ) -> Option<fdo::Result<()>> {
+        self.0
+            .set_mut(property_name, value, server, connection, header, emitter)
+            .await
+    }
+
+    fn call<'call>(
+        &'call self,
+        server: &'call zbus::ObjectServer,
+        connection: &'call zbus::Connection,
+        msg: &'call zbus::Message,
+        name: zbus::names::MemberName<'call>,
+    ) -> zbus::object_server::DispatchResult2<'call> {
+        if name.as_str() == "AuthenticationAgentResponse3" {
+            return zbus::object_server::DispatchResult2::new_async(
+                connection,
+                msg,
+                self.response3(connection, msg),
+            );
+        }
+        self.0.call(server, connection, msg, name)
+    }
+
+    fn call_mut<'call>(
+        &'call mut self,
+        server: &'call zbus::ObjectServer,
+        connection: &'call zbus::Connection,
+        msg: &'call zbus::Message,
+        name: zbus::names::MemberName<'call>,
+    ) -> zbus::object_server::DispatchResult2<'call> {
+        self.0.call_mut(server, connection, msg, name)
+    }
+
+    fn introspect_to_writer(&self, writer: &mut dyn std::fmt::Write, level: usize) {
+        self.0.introspect_to_writer(writer, level)
+    }
 }

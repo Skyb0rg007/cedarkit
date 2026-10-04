@@ -84,30 +84,59 @@ fn boot_time_ns() -> Option<i128> {
     Some(now(libc::CLOCK_REALTIME)? - now(libc::CLOCK_BOOTTIME)?)
 }
 
-/// Whether `a` and `b` are siblings that may share a temporary
-/// authorization: both still running, as the same user, children of the
-/// same parent (not init), all in the same cgroup, and with the same
-/// controlling pseudo-terminal, which is older than both of them, so that it
-/// wasn't reopened with the same number in between.
-pub fn siblings(a: ProcessId, b: ProcessId) -> bool {
+/// What polkit records about a process when it remembers an
+/// authentication for it, to recognize its siblings later, even once it has
+/// exited.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Family {
+    uid: u32,
+    parent: ProcessId,
+    tty: u64,
+    cgroup: u64,
+    start_time: u64,
+}
+
+/// A running process's family, if it has a parent other than init.
+pub fn family(process: ProcessId) -> Option<Family> {
+    let info = info(process)?;
+    if info.ppid <= 1 {
+        return None;
+    }
+    let (parent, _) = parent(&info)?;
+    Some(Family {
+        uid: info.uid,
+        parent,
+        tty: info.tty,
+        cgroup: info.cgroup,
+        start_time: info.start_time,
+    })
+}
+
+/// Whether running process `b` is a sibling of the process `a` was recorded
+/// for, so that they may share a temporary authorization: as the same user,
+/// a child of the same parent (still running, and not init), all in the
+/// same cgroup, and with the same controlling pseudo-terminal, which is
+/// older than both of them, so that it wasn't reopened with the same number
+/// in between.
+pub fn siblings(a: &Family, b: ProcessId) -> bool {
     (|| {
-        let (ia, ib) = (info(a)?, info(b)?);
-        if ia.uid != ib.uid || ia.ppid != ib.ppid || ia.ppid <= 1 {
+        let b = family(b)?;
+        if a.uid != b.uid || a.parent != b.parent {
             return None;
         }
-        let (parent_id, parent) = parent(&ia)?;
-        if ia.cgroup != ib.cgroup || ia.cgroup != parent.cgroup || ia.cgroup == 0 {
+        let parent = info(a.parent)?;
+        if a.cgroup != b.cgroup || a.cgroup != parent.cgroup || a.cgroup == 0 {
             return None;
         }
-        if ia.tty != ib.tty || ia.tty != parent.tty || ia.tty == 0 {
+        if a.tty != b.tty || a.tty != parent.tty || a.tty == 0 {
             return None;
         }
         // Unix98 pseudo-terminals, /dev/pts/N.
-        let major = (ia.tty >> 8) & 0xfff;
+        let major = (a.tty >> 8) & 0xfff;
         if !(136..=143).contains(&major) {
             return None;
         }
-        let minor = ((ia.tty & 0xfff0_0000) >> 12) | (ia.tty & 0xff);
+        let minor = ((a.tty & 0xfff0_0000) >> 12) | (a.tty & 0xff);
         let tty = fs::metadata(format!("/dev/pts/{minor}")).ok()?;
 
         // Compare the terminal's last change, at the latest its creation,
@@ -119,11 +148,11 @@ pub fn siblings(a: ProcessId, b: ProcessId) -> bool {
             return None;
         }
         let created = (changed - boot) * ticks as i128 / 1_000_000_000;
-        if (ia.start_time as i128) < created || (ib.start_time as i128) < created {
+        if (a.start_time as i128) < created || (b.start_time as i128) < created {
             return None;
         }
         // The parent must still be the same process at the end.
-        (info(parent_id).is_some()).then_some(())
+        info(a.parent).map(|_| ())
     })()
     .is_some()
 }
@@ -141,18 +170,21 @@ mod tests {
     #[test]
     fn a_process_is_not_its_own_parents_sibling() {
         let me = me();
-        let parent = parent(&info(me).unwrap()).unwrap().0;
-        assert!(!siblings(me, parent));
+        // Without a cgroup filesystem, as in a build sandbox, nothing is.
+        let (Some(family), Some(parent)) = (family(me), info(me).and_then(|i| parent(&i))) else {
+            return;
+        };
+        assert!(!siblings(&family, parent.0));
     }
 
     #[test]
-    fn gone_processes_are_not_siblings() {
+    fn gone_processes_have_no_family() {
         let me = me();
         let gone = ProcessId {
             start_time: me.start_time + 1,
             ..me
         };
-        assert!(!siblings(me, gone));
+        assert!(family(gone).is_none());
     }
 
     /// Two children of this process share a terminal only if it has one,
@@ -170,11 +202,16 @@ mod tests {
         let id = |c: &std::process::Child| crate::state::process(c.id(), Some(0)).unwrap().id;
         let (ia, ib) = (id(&a), id(&b));
         let has_pts = info(ia).is_some_and(|i| (136..=143).contains(&((i.tty >> 8) & 0xfff)));
-        assert_eq!(siblings(ia, ib), has_pts);
+        let Some(fa) = family(ia) else {
+            return;
+        };
+        assert_eq!(siblings(&fa, ib), has_pts);
+        // Once recorded, it holds after the first has exited.
         a.kill().unwrap();
-        b.kill().unwrap();
         a.wait().unwrap();
+        assert_eq!(siblings(&fa, ib), has_pts);
+        b.kill().unwrap();
         b.wait().unwrap();
-        assert!(!siblings(ia, ib));
+        assert!(!siblings(&fa, ib));
     }
 }

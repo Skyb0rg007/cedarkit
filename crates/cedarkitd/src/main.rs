@@ -50,6 +50,13 @@ struct Args {
     #[arg(long)]
     polkit: bool,
 
+    /// For the polkit interface: when a mechanism doesn't pass the details
+    /// that identify a resource, as unpatched systemd doesn't, take them to
+    /// be empty strings rather than denying the check. polkit's defaults
+    /// still apply; rules about the resource, such as owners', don't.
+    #[arg(long)]
+    fill_missing_details: bool,
+
     /// How long to remember authentications, in seconds. By default,
     /// polkit's `ExpirationSeconds` from `polkitd.conf`, or 300.
     #[arg(long)]
@@ -117,6 +124,8 @@ async fn main() -> anyhow::Result<()> {
         cancellations: Arc::default(),
         own_uid: nix::unistd::geteuid().as_raw(),
         changed: tokio::sync::Notify::new(),
+        fill_missing_details: args.fill_missing_details,
+        families: Mutex::default(),
     });
 
     let builder = if args.session {
@@ -133,9 +142,9 @@ async fn main() -> anyhow::Result<()> {
     if args.polkit {
         builder = builder.name(polkit::BUS_NAME)?.serve_at(
             polkit::PATH,
-            polkit::PolkitAuthority {
+            polkit::PolkitInterface(polkit::PolkitAuthority {
                 state: state.clone(),
-            },
+            }),
         )?;
     }
     let conn = builder.build().await.context("connecting to D-Bus")?;
@@ -148,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
                 state.changed.notified().await;
                 let iface = conn
                     .object_server()
-                    .interface::<_, polkit::PolkitAuthority>(polkit::PATH)
+                    .interface::<_, polkit::PolkitInterface>(polkit::PATH)
                     .await;
                 if let Ok(iface) = iface {
                     let _ = polkit::PolkitAuthority::changed(iface.signal_emitter()).await;

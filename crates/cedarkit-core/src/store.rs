@@ -103,13 +103,17 @@ impl AuthStore {
         id
     }
 
-    /// The authentications remembered for holders that `matches` accepts,
-    /// and that haven't expired.
-    pub fn lookup(&mut self, now: Instant, matches: impl Fn(&Holder) -> bool) -> Vec<Remembered> {
+    /// The authentications remembered that `matches` accepts, and that
+    /// haven't expired.
+    pub fn lookup(
+        &mut self,
+        now: Instant,
+        matches: impl Fn(&Remembered) -> bool,
+    ) -> Vec<Remembered> {
         self.expire(now);
         self.entries
             .iter()
-            .filter(|e| matches(&e.holder))
+            .filter(|e| matches(e))
             .cloned()
             .collect()
     }
@@ -179,7 +183,7 @@ mod tests {
 
         let found = |store: &mut AuthStore, holder: Holder, at| {
             store
-                .lookup(at, |h| *h == holder)
+                .lookup(at, |r| r.holder == holder)
                 .into_iter()
                 .map(|r| r.auth)
                 .collect::<Vec<_>>()

@@ -409,7 +409,7 @@ fn resources_from_polkit_details() {
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
         authority
-            .polkit_resource(action, &details)
+            .polkit_resource(action, &details, false)
             .map(|r| (r.uid.to_string(), r.attrs))
     };
     let id = |action: &str, details: &[(&str, &str)]| resource(action, details).unwrap().0;
@@ -448,9 +448,19 @@ fn resources_from_polkit_details() {
     .unwrap();
     assert_eq!(machine, r#"systemd::Machine::"box""#);
     assert_eq!(attrs["owner"], owner(ALICE));
-    // A required attribute's detail is missing, and there's no singleton.
-    assert!(resource("org.freedesktop.machine1.shell", &[("machine", "box")]).is_err());
+    // An optional attribute's detail is missing.
+    let (_, attrs) = resource("org.freedesktop.machine1.shell", &[("machine", "box")]).unwrap();
+    assert!(!attrs.contains_key("owner"));
+    // Nothing identifies the resource, and there's no singleton.
     assert!(resource("org.freedesktop.machine1.shell", &[]).is_err());
+    // A required string attribute's detail is missing.
+    assert!(
+        resource(
+            "io.systemd.credentials.decrypt",
+            &[("credential", "secret")]
+        )
+        .is_err()
+    );
     // A detail of the wrong type.
     assert!(
         resource(
@@ -485,4 +495,49 @@ fn polkit_action_descriptions() {
         ["unix-user:systemd-network"]
     );
     assert!(authority.owners("org.freedesktop.login1.reboot").is_empty());
+}
+
+/// For unpatched systemd, which passes few details, made-up resources give
+/// polkit's own answers: every action, with no details at all, decides as
+/// its `.policy` file's defaults (with `imply`) say, in every kind of
+/// session. Only lingering can't be made up: its resource is a user.
+#[test]
+fn unpatched_systemd_fallback() {
+    let authority = load(vec![]);
+    let actions = authority.polkit_actions();
+    let defaults: HashMap<&str, &[String; 3]> = actions
+        .iter()
+        .map(|a| (a.id.as_str(), &a.defaults))
+        .collect();
+    let none = HashMap::new();
+
+    for action in &actions {
+        let id = action.id.as_str();
+        let resource = authority.polkit_resource(id, &none, true);
+        if id.ends_with("-linger") {
+            assert!(resource.is_err(), "{id}: users can't be made up");
+            continue;
+        }
+        let resource = resource.unwrap_or_else(|e| panic!("{id}: {e}"));
+        for (column, session) in sessions().iter().enumerate() {
+            // polkit allows an action implied by one that's allowed.
+            let implied = actions.iter().any(|a| {
+                a.annotations
+                    .get("org.freedesktop.policykit.imply")
+                    .is_some_and(|i| i.split_whitespace().any(|x| x == id))
+                    && defaults[a.id.as_str()][column] == "yes"
+            });
+            let want = if implied {
+                "yes"
+            } else {
+                action.defaults[column].as_str()
+            };
+            let got = check(&authority, id, resource.clone(), session.as_ref(), &[]);
+            assert_eq!(
+                got, want,
+                "{id} in column {column}, resource {}",
+                resource.uid
+            );
+        }
+    }
 }
