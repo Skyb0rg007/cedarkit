@@ -19,7 +19,7 @@ This document defines what policies, entity data and callers can rely on. Anythi
 11. [The polkit-compatible front end](#11-the-polkit-compatible-front-end)
 12. [Decisions and rationale](#12-decisions-and-rationale)
 13. [Open questions](#13-open-questions)
-14. [Changes from the current implementation](#14-changes-from-the-current-implementation)
+14. [Implementation status](#14-implementation-status)
 
 ## 1. What is frozen
 
@@ -79,7 +79,7 @@ Every check is one Cedar request:
 
 - **principal**: the subject's `User`.
 - **action**: `Action::"<action id>"`, using the polkit-style reverse-DNS id, e.g. `Action::"org.freedesktop.login1.reboot"`. Actions are always in the root namespace.
-- **resource**: the object the action acts on, of a type declared by the application, e.g. `systemd::Session::"3"`. For actions that act on the machine as a whole, a singleton named by the action (`@singleton`).
+- **resource**: the object the action acts on, of a type declared by the application, e.g. `systemd::Unit::"sshd.service"` or `logind::Session::"3"`. For actions that act on the machine as a whole, a singleton named by the action (`@singleton`).
 - **context**: exactly `{ subject: Subject, auth: Authentication }`, plus `details` for actions that declare any ([section 6.3](#63-context-types-and-details)).
 
 ### 4.1 The subject
@@ -146,11 +146,18 @@ With logind's provider installed, the generated subject schema contains `entity 
 
 ### 6.1 Namespaces
 
-Each application declares its types in its own Cedar namespace, named after its directory: for example, `namespace systemd { entity Session { … }; }`. Policies refer to them as `systemd::Session`. Core types (`User`, `Group`, `Role`, `Subject`, `Authentication`, `Context`) are in the root namespace and are referred to unqualified.
+Each application declares its types in its own Cedar namespace, named after its directory: for example, `namespace systemd { entity Unit; }`. Policies refer to them as `systemd::Unit`. Core types (`User`, `Group`, `Role`, `Subject`, `Authentication`, `Context`) are in the root namespace and are referred to unqualified.
 
 ### 6.2 Actions
 
-- Actions are declared in the root namespace, with ids that start with one of the application's **action prefixes** (e.g. `org.freedesktop.login1.`).
+- Actions are declared in the root namespace, with ids that start with one of the application's **action prefixes** (e.g. `org.freedesktop.login1.`). The application declares its prefixes with `@prefixes("…")` on its namespace, space-separated, each ending in a dot:
+
+  ```cedar
+  @prefixes("org.freedesktop.login1. org.freedesktop.timedate1.")
+  namespace systemd {}
+  ```
+
+  The same prefixes name its roles, e.g. `Role::"org.freedesktop.login1.admin"`. No two applications' prefixes may overlap.
 - An action may be in **action groups** declared by the same application, for use in authentication reuse ([section 7.4](#74-remembered-authentications)).
 - Optional annotations:
 
@@ -169,7 +176,7 @@ Each application declares its types in its own Cedar namespace, named after its 
 
 ### 6.4 Resource types and polkit details
 
-Resource entity types and their attributes carry `@detail("…")` annotations naming the polkit details that identify them, for the [polkit-compatible front end](#11-the-polkit-compatible-front-end). For example, `@detail("session")` on `systemd::Session`, and `@detail("owner_uid")` on its `owner` attribute. A detail holding a user is a uid, and becomes `User::"<uid>"` directly.
+Resource entity types and their attributes carry `@detail("…")` annotations naming the polkit details that identify them, for the [polkit-compatible front end](#11-the-polkit-compatible-front-end). For example, `@detail("machine")` on `systemd::Machine`, and `@detail("owner_uid")` on its `owner` attribute. Users, and the types of built-in fact providers such as `logind::Session`, are built by CedarKit itself; mechanisms only name them. A detail holding a user is a uid, and becomes `User::"<uid>"` directly.
 
 ### 6.5 Fact providers
 
@@ -207,10 +214,14 @@ How facts are obtained:
 
 ```cedar
 namespace logind {
+  @detail("seat")
   entity Seat;
 
-  // A logind session, by session id. Also usable as a resource type.
+  // A logind session, by session id. Also the resource of login1's session
+  // actions; CedarKit fills in its attributes from logind.
+  @detail("session")
   entity Session {
+    user: User,
     seat?: Seat,
     remote: Bool,
     // "user", "greeter", "lock-screen", "background", "manager", ...
@@ -345,8 +356,11 @@ where the application's schema declares `action "org.freedesktop.timedate1.set-t
 
 polkit's `imply`: an action A that implies X means that being allowed A also allows X. Cedar policies can't ask whether another action would be allowed, so the translator makes it explicit:
 
-- **Defaults:** for each action X implied by A, it emits A's default permits again for X. They have the same session and authentication conditions, with `context.auth.action == action` replaced by `context.auth.action in [A, X]`. In systemd this matters: `login1.reboot` is `yes` for active local sessions and implies `login1.set-wall-message`, which is otherwise `auth_admin_keep`.
-- **Remembered authentications:** a remembered authentication for A also covers X, through the same `context.auth.action in [A, X]` condition.
+polkit grants X when the subject is already authorized for A without interacting: by A's defaults, or by a temporary authorization for A. The translator copies exactly that:
+
+- **Defaults:** for each action X implied by A, each `yes` permit of A is emitted again for X, with the same session condition. In systemd this matters: `login1.reboot` is `yes` for active local sessions and implies `login1.set-wall-message`, which is otherwise `auth_admin_keep`.
+- **Remembered authentications:** each `_keep` permit of A is emitted for X with the same session condition, and the authentication condition `context.auth has user && <who> && context.auth.action == Action::"<A>"`. A remembered authentication for A on any resource then covers X, as in polkit, whose resources differ between A and X anyway.
+- **Fresh authentications:** A's `auth_self` and `auth_admin` permits aren't copied. polkit never prompts for X on A's behalf.
 - **Not carried over:** policies added to A later, by the local admin or anyone else, don't automatically apply to X. polkit would apply them, because it evaluates A in full. To extend them to X, write them for both actions, or for an action group containing both.
 - **Undefined actions:** an implied action that isn't declared anywhere (systemd's `machine1` actions name some that don't exist) is ignored.
 
@@ -354,7 +368,7 @@ The engine has no special handling for `imply`.
 
 ### 7.6 Policy ids
 
-Every generated policy has an `@id("<action or group>/<column>")`, e.g. `@id("org.freedesktop.login1.reboot/active")`. Hand-written policies should have one too. Ids appear in diagnostics and logs.
+Every generated policy has an `@id`: `"<file>/<result>/<column>"` for the defaults, which group the actions of a `.policy` file with the same result, e.g. `@id("org.freedesktop.login1/yes/active")`, and `"<X>/implied-by/<A>/<column>"` for implied actions. Policies without an `@id` are named after their file and position. Hand-written policies should have one too. Ids appear in diagnostics and logs.
 
 ## 8. Files and loading
 
@@ -367,13 +381,13 @@ Every generated policy has an `@id("<action or group>/<column>")`, e.g. `@id("or
 | `/etc/cedarkit/local/` | local admin | additional schemas, policies and entity data |
 | `/var/lib/cedarkit/subject.cedarschema` | `cedarctl schema update` | the generated `Subject` declaration ([section 6.5](#65-fact-providers)); never edited by hand |
 
-The core schema is part of CedarKit itself. Files are read in lexical path order. A file that can't be read or parsed stops loading with an error naming the file.
+The core schema is part of CedarKit itself. `/usr/share/cedarkit/cedarkit/` holds CedarKit's own vendor files, such as the default admin role, and isn't restricted like other applications'. Files are read in lexical path order. A file that can't be read or parsed stops loading with an error naming the file.
 
 ### 8.2 What vendor files may contain
 
 The rules below are checked at load time. A vendor file that breaks them is rejected, and CedarKit refuses to start, naming the file.
 
-- **Schemas:** only the namespace `<app>`, and actions starting with the application's declared action prefixes.
+- **Schemas:** only the namespace `<app>`, and in the root namespace only actions starting with the application's declared action prefixes, in action groups of its own.
 - **Policies:** the action constraint must be a closed set of the application's own actions (`action == …` or `action in [ … ]`, including its own action groups). A policy that doesn't constrain the action is rejected.
 - **Entity data:** only memberships whose parent is one of the application's own roles (`Role::"<prefix>…"`).
 - **`@implies`:** may only list the application's own actions.
@@ -502,7 +516,7 @@ Foreseen additions, all append-only:
 | 4 | Session columns are cumulative, and non-monotonic `.policy` files are rejected. | Simpler policies; holds for all of systemd's actions. |
 | 5 | Users are identified by uid, with an optional `name` attribute. Groups are identified by name. | Uids are stable and every account has one. Group names keep entity files readable. |
 | 6 | Remembered authentications record their action and resource, and policies decide what they count for. | Configurable per action. By default stricter than polkit, which reuses an authentication for any resource. |
-| 7 | `imply` becomes policy: implied actions get copies of the implying actions' default permits. | Keeps `imply` in Cedar, where analysis tools and admins can see it, instead of in the engine. The cost: later policies for an implying action don't automatically extend to the actions it implies. |
+| 7 | `imply` becomes policy: implied actions get copies of the implying actions' `yes` and `_keep` permits. | Keeps `imply` in Cedar, where analysis tools and admins can see it, instead of in the engine. The cost: later policies for an implying action don't automatically extend to the actions it implies. |
 | 8 | Labels exist only in the polkit front end. | The labelling heuristic has changed repeatedly. Keeping it out of the contract means it can change again without breaking anything. |
 | 9 | Vendor files are confined to their namespace, and entity data can only add role memberships. | Packages can't grant themselves, or each other, anything outside their own actions. Entity data can't forge facts about requests. |
 | 10 | Evaluation errors deny. | A `forbid` that fails to evaluate must not silently stop forbidding. |
@@ -516,30 +530,20 @@ Foreseen additions, all append-only:
 3. **Default `_keep` scope.** [Section 7.1](#71-authentication-patterns) uses "same action, same resource". polkit uses "same action, any resource". This could be either default, and is configurable by policy whichever is chosen.
 4. **Interaction flag.** Whether a check without `AllowUserInteraction` should still report the options (polkit reports only that a challenge is needed), given that the options reveal who's an admin.
 
-## 14. Changes from the current implementation
+## 14. Implementation status
 
-- **Schema:**
-  - `User` id becomes the uid, with `name?`;
-  - `Group` gains `gid?`;
-  - add `Subject`, declared in the generated subject schema;
-  - add logind's built-in provider, and move session facts out of the core;
-  - `Authentication` gains `action` and `same_resource`;
-  - context becomes `{ subject, auth, details? }`;
-  - details become typed and optional.
-- **systemd schemas:** move into `namespace systemd`, update `@detail` annotations for uid-based users, and declare action groups where `imply` needs them.
-- **Generator:** emit the new patterns ([section 7.1](#71-authentication-patterns)), `imply` permits ([section 7.5](#75-implied-actions)) and `@id`s, and write files into the `/usr/share` layout.
-- **Engine:**
-  - enforce the entity data rules, which fixes the confirmed resource-forgery bug;
-  - deny on evaluation errors;
-  - remembered-authentication store;
-  - structured results;
-  - labels only in the polkit front end;
-  - remove the stand-in heuristic;
-  - resolve users referred to by resources.
-- **Loading:**
-  - vendor and `/etc` layout with masking;
-  - vendor namespace enforcement;
-  - per-file error reporting.
-- **Daemon:** derive the subject from the caller's credentials and logind, and return the structured result.
-- **`cedarctl validate`:** the new warnings ([section 8.4](#84-validation-at-load)).
-- **`cedarctl schema update`:** generates `/var/lib/cedarkit/subject.cedarschema` ([section 6.5](#65-fact-providers)).
+Implemented:
+
+- the core schema, logind's provider (`policies/logind/`, `crates/cedarkit-logind`), and the generated subject schema with `cedarctl schema update`;
+- loading: the vendor and `/etc` layout with masking, the vendor rules, the entity data rules, and errors naming each file or policy;
+- evaluation: the guarantees in [section 9.1](#91-guarantees), remembered authentications matched by policy, structured results, and users resolved from the resource and facts;
+- `cedarctl validate` with the warnings in [section 8.4](#84-validation-at-load);
+- the native D-Bus interface, deriving the subject from the caller's credentials and logind;
+- the translator and systemd's policies, in `policies/systemd/`.
+
+Not yet implemented:
+
+- authentication agents, so nothing is remembered yet in the daemon's store;
+- forgetting remembered authentications when the process exits or its session ends;
+- the polkit-compatible front end ([section 11](#11-the-polkit-compatible-front-end)); its labels are in `cedarkit_core::polkit`;
+- binding mechanisms and providers to namespaces ([open question 1](#13-open-questions)).

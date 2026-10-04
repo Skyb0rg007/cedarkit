@@ -2,6 +2,8 @@
 
 This project is a polkit alternative, which uses the [Cedar](https://www.cedarpolicy.com/) policy language.
 
+[`docs/design.md`](docs/design.md) defines the authorization model: what policies, entity data and callers can rely on. This file is an overview.
+
 
 ## Building
 
@@ -16,97 +18,147 @@ cargo test
 
 ## Layout
 
-| Path                    | What it is                                                     |
-|-------------------------|----------------------------------------------------------------|
-| `crates/cedarkit-core`  | The authorization engine: loads policies, evaluates requests   |
-| `crates/cedarkitd`      | D-Bus daemon exposing `org.cedarkit.Authority1`                |
-| `crates/cedarctl`       | CLI for checking requests and validating policies locally      |
-| `policies/`             | Core Cedar schema (`cedarkit.cedarschema`)                     |
-| `policies/systemd/`     | systemd's polkit actions translated to Cedar (see below)       |
-| `tools/`                | `polkit2cedar.py` and the systemd action → resource map        |
-| `data/`                 | D-Bus system bus configuration                                 |
+| Path                         | What it is                                                         |
+|------------------------------|--------------------------------------------------------------------|
+| `crates/cedarkit-core`       | The authorization engine: loads files, evaluates requests          |
+| `crates/cedarkit-logind`     | logind's fact provider: what logind knows about a process          |
+| `crates/cedarkitd`           | D-Bus daemon exposing `org.cedarkit.Authority1`                    |
+| `crates/cedarctl`            | CLI for checking requests and validating policies                  |
+| `policies/`                  | Vendor files, laid out like `/usr/share/cedarkit`                  |
+| `policies/cedarkit/`         | CedarKit's own: the default admin role                             |
+| `policies/logind/`           | logind's fact provider schema                                      |
+| `policies/systemd/`          | systemd's polkit actions translated to Cedar (see below)           |
+| `state/subject.cedarschema`  | The generated subject schema for `policies/`                       |
+| `tools/`                     | `polkit2cedar.py`, `details.py`, and the systemd action → resource map |
+| `data/`                      | D-Bus system bus configuration                                     |
 
 
 ## Policy model
 
-Each check is turned into a Cedar request:
+Each check is one Cedar request:
 
-- **principal**: `User::"<name>"`, a member of each of its `Group::"<name>"`s
+- **principal**: the caller's `User::"<uid>"`, a member of its `Group::"<name>"`s and of `Role`s
 - **action**: `Action::"<action id>"`, using polkit-style ids such as `org.freedesktop.login1.reboot`
-- **resource**: the object the action acts on, e.g. `Unit::"sshd.service"` or `Session::"3"`, with its attributes (such as its `owner`) and any entities it belongs to
-- **context**: `{ local: Bool, active: Bool, auth: Authentication }`, plus `details: { ... }` holding the polkit details the action's context type declares
+- **resource**: the object the action acts on, e.g. `systemd::Unit::"sshd.service"` or `logind::Session::"3"`, with its attributes (such as its `owner`)
+- **context**: `{ subject, auth }`, plus `details` for actions that declare any
 
 This deliberately goes beyond polkit, which is told only an action id and, sometimes, loose string details. Because Cedar sees the real object, a policy can say "the owner of a session may lock it" instead of relying on each daemon to special-case owners before asking.
 
+### The subject
+
+`context.subject` holds what fact providers know about the calling process, one optional attribute per provider. logind's is built in: `context.subject.logind` is a `logind::Process`, with the process's `session`, the user's graphical `display` session, and whether any of the user's sessions is active (`user_active`). Policies can be as precise as logind is, for example "from a seat", or "in the caller's own session".
+
+`Subject` itself is declared in a generated file, `/var/lib/cedarkit/subject.cedarschema`, which `cedarctl schema update` writes from the installed providers' `@subject` types.
+
 ### Authentication
 
-Cedar only answers allow or deny, so how the user has authenticated is part of the request: `context.auth` is an `Authentication` entity with two attributes.
-- `identity` is `"none"`, `"self"` (their own password) or `"admin"` (an administrator's password);
-- `fresh` is whether that password was just entered, rather than remembered from an earlier authentication.
+Cedar only answers allow or deny, so how the caller has authenticated is part of the request: `context.auth` is an `Authentication` entity.
+- `user` is who entered a password, if anyone did; it may be someone else, such as an admin;
+- `fresh` is whether that happened during this check, rather than being remembered from an earlier one;
+- `action` and `same_resource` say what a remembered authentication was given for.
 
 polkit's results become ordinary conditions on it:
 
 | polkit            | Cedar condition |
 |-------------------|-----------------|
 | `yes`             | none |
-| `auth_self_keep`  | `["self", "admin"].contains(context.auth.identity)` |
-| `auth_self`       | `["self", "admin"].contains(context.auth.identity) && context.auth.fresh` |
-| `auth_admin_keep` | `context.auth.identity == "admin"` |
-| `auth_admin`      | `context.auth.identity == "admin" && context.auth.fresh` |
+| `auth_self_keep`  | `context.auth has user && context.auth.user == principal && context.auth.action == action && context.auth.same_resource` |
+| `auth_self`       | `context.auth has user && context.auth.user == principal && context.auth.fresh` |
+| `auth_admin_keep` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.action == action && context.auth.same_resource` |
+| `auth_admin`      | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.fresh` |
 | `no`              | no policy at all, since Cedar denies by default |
 
-To decide what to ask for, CedarKit evaluates in three steps:
+So by default, a remembered authentication counts for the same action on the same resource. A policy can accept more, for example any of a group of related actions.
 
-1. **As the user has actually authenticated** (today, never, as nobody is prompted yet). If that's allowed, the result is `allow`.
-2. **With the authentication unknown**, using Cedar's type-aware partial evaluation (TPE). If the request is denied however the user might authenticate, the result is `deny`, without prompting. This is why `Authentication` is an entity: TPE can leave an entity's attributes unknown, but not part of the context.
-3. **Otherwise, the weakest authentication that works**, found by re-evaluating only what's left of the policies with progressively stronger authentication: own password remembered, own password entered, admin password remembered, admin password entered. The result is the matching challenge (`auth_self_keep`, ..., `auth_admin`).
+### Roles
 
-Results use polkit's names. Remembering authentications for a while isn't implemented yet.
+What "an admin" means is up to each machine, not the application. Policies ask for a role, such as `Role::"org.freedesktop.timedate1.admin"`, and entity data files (`*.entities.json`, in Cedar's JSON entity format) say who's in it. They hold role memberships and nothing else: users (by uid), groups and roles, in roles. Memberships combine across files:
 
-polkit has three default columns, and picks exactly one per caller: `allow_active` for a local session in the foreground, `allow_inactive` for any other local session, and `allow_any` for everyone else, including remote callers and callers without a session. Cedar instead combines every policy that applies, and the least demanding permit wins. So each column becomes a policy for every session it could apply to:
+```json
+[
+  { "uid": { "type": "Group", "id": "wheel" },
+    "parents": [{ "type": "Role", "id": "admin" }] }
+]
+```
 
-| polkit           | Cedar condition                   |
-|------------------|-----------------------------------|
-| `allow_any`      | none                              |
-| `allow_inactive` | `context.local`                   |
-| `allow_active`   | `context.local && context.active` |
+Here, `policies/cedarkit/admin.entities.json` makes `wheel` the general admin role, and each application's generated `<service>.entities.json` puts `Role::"admin"` in that application's admin role. To let the `netadmin` group approve network changes too, add `/etc/cedarkit/local/netadmin.entities.json`:
 
-This gives polkit's answer as long as each column is at least as permissive as the broader one: `allow_inactive` as `allow_any`, and `allow_active` as `allow_inactive`. That's true of all of systemd's actions, and `polkit2cedar.py` refuses to translate an action where it isn't. A column with the same result as the broader one adds nothing and is left out. For example, `login1.reboot` is `auth_admin_keep` / `auth_admin_keep` / `yes`:
+```json
+[
+  { "uid": { "type": "Group", "id": "netadmin" },
+    "parents": [{ "type": "Role", "id": "org.freedesktop.network1.admin" }] }
+]
+```
+
+### Results
+
+A check is `allow`, `deny`, or `challenge` with a list of users who could authenticate to allow it, the caller first. Each says whether a remembered authentication by them would be accepted (`keep`). CedarKit finds them by trying the caller, every member of a role, and the users the resource refers to, such as its owner.
+
+The request is denied if nobody could pass, if the action isn't declared, if the request doesn't match the schema, if a user it refers to doesn't exist, or if any policy fails to evaluate.
+
+polkit's labels (`auth_self`, `auth_admin_keep`, ...) only exist for polkit compatibility: `auth_self` if the caller is the only option, otherwise `auth_admin`, and `_keep` if remembered authentications would be accepted.
+
+### polkit's session columns
+
+polkit has three default columns, and picks exactly one per caller: `allow_active` for a local session in the foreground, `allow_inactive` for any other local session, and `allow_any` for everyone else. Cedar instead combines every policy that applies, and the least demanding permit wins. So each column becomes a policy for every session it could apply to, written over logind's facts:
+
+| polkit           | Cedar condition |
+|------------------|-----------------|
+| `allow_any`      | none |
+| `allow_inactive` | *local*: the process's session, or failing that the user's display session, has a seat |
+| `allow_active`   | *local* `&& context.subject.logind.user_active` |
+
+This gives polkit's answer as long as each column is at least as permissive as the broader one. That's true of all of systemd's actions, and `polkit2cedar.py` refuses to translate an action where it isn't. For example, `login1.reboot` is `auth_admin_keep` / `auth_admin_keep` / `yes`, and is in the groups of actions with those results:
 
 ```cedar
 // Allowed for active local sessions.
-permit (principal, action == Action::"org.freedesktop.login1.reboot", resource)
-when { context.local && context.active };
+@id("org.freedesktop.login1/yes/active")
+permit (principal, action in [Action::"org.freedesktop.login1.reboot", ...], resource)
+when {
+  context.subject has logind &&
+  ((context.subject.logind has session && context.subject.logind.session has seat) ||
+   (!(context.subject.logind has session) &&
+    context.subject.logind has display && context.subject.logind.display has seat)) &&
+  context.subject.logind.user_active
+};
 
 // Requires auth_admin_keep for any session.
-permit (principal, action == Action::"org.freedesktop.login1.reboot", resource)
-when { context.auth.identity == "admin" };
+@id("org.freedesktop.login1/auth_admin_keep/any")
+permit (principal, action in [Action::"org.freedesktop.login1.reboot", ...], resource)
+when {
+  context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
+  context.auth.action == action && context.auth.same_resource
+};
 ```
+
+polkit's `imply` becomes more permits: an action implied by A is allowed where A is `yes`, and with an authentication remembered for A where A is `_keep`.
 
 ### Making defaults stricter
 
-Cedar combines all policies: a `permit` can only allow more, and a `forbid` overrides any `permit`. So an action is made stricter with a `forbid ... unless` naming what's required. For example, in a local `.cedar` file:
+A `permit` can only allow more, and a `forbid` overrides any `permit`. So an action is made stricter with a `forbid ... unless` naming what's required, in a local `.cedar` file:
 
 ```cedar
 // Always ask for an admin password to set the time, never remember it
 // (the default is auth_admin_keep).
+@id("local/set-time")
 forbid (principal, action == Action::"org.freedesktop.timedate1.set-time", resource)
-unless { context.auth.identity == "admin" && context.auth.fresh };
-
-// Make even active local users enter their own password to reboot
-// (the default is yes).
-forbid (principal, action == Action::"org.freedesktop.login1.reboot", resource)
-unless { ["self", "admin"].contains(context.auth.identity) };
+unless {
+  context.auth has user &&
+  context.auth.user in Role::"org.freedesktop.timedate1.admin" &&
+  context.auth.fresh
+};
 ```
 
-`cedarctl check` takes `--auth self|admin` and `--fresh` to evaluate a request as if the user had authenticated.
+### Files
 
-Policies are loaded from every `*.cedar` file under the policy directory, recursively, and the schema from every `*.cedarschema` file there. The schema is required:
-- **At load:** policies must validate against it, or loading fails.
-- **On every check:** requests are checked against it too, so a resource of the wrong type, a missing required attribute, or a missing declared detail is an error.
-- **Undeclared actions** are denied.
+| Directory | Contents |
+|-----------|----------|
+| `/usr/share/cedarkit/<app>/` | Vendor schemas, policies and entity data for one application |
+| `/etc/cedarkit/<app>/` | The local admin's replacements for vendor files with the same name |
+| `/etc/cedarkit/local/` | The local admin's own files |
+| `/var/lib/cedarkit/subject.cedarschema` | Written by `cedarctl schema update` |
 
-`cedarctl validate` reports the same validation errors, plus warnings, such as a policy that can never match because its action doesn't apply to that resource type.
+Vendor files are confined to their application: its namespace, its actions (those starting with the prefixes it declares with `@prefixes` on its namespace), and its roles. The local admin's files can contain anything. Everything must validate against the schema, or CedarKit doesn't start. `cedarctl validate` reports the same errors, plus warnings about likely mistakes, such as a role with no members.
 
 
 ## systemd policies
@@ -115,15 +167,19 @@ Policies are loaded from every `*.cedar` file under the policy directory, recurs
 
 | File | Written by | Contents |
 |------|------------|----------|
-| `entities.cedarschema` | hand | The resource types (`Session`, `Unit`, `Machine`, `Link`, `Home`, ...), their attributes, and the polkit details that carry them |
+| `entities.cedarschema` | hand | The resource types in `namespace systemd` (`Unit`, `Machine`, `Link`, `Home`, ...), their attributes, and the polkit details that carry them |
 | `ownership.cedar` | hand | Cases where systemd lets an object's owner through without asking polkit |
+| `_namespace.cedarschema` | generated | The action prefixes systemd owns |
 | `<service>.cedarschema` | generated | Each action, with its polkit description as `@doc`, its `org.freedesktop.policykit.imply` list as `@implies`, the resource types it applies to, and the id of the singleton it acts on (`@singleton`), if any |
-| `<service>.cedar` | generated | polkit's defaults for each action |
+| `<service>.cedar` | generated | polkit's defaults for each action, and the permits that `imply` adds |
+| `<service>.entities.json` | generated | Puts `Role::"admin"` in the service's admin role, `Role::"<service>.admin"` |
+
+Sessions and seats are logind's types, `logind::Session` and `logind::Seat`, which CedarKit fills in from logind itself.
 
 Regenerate after a systemd update with:
 
 ```sh
-tools/polkit2cedar.py ~/src/systemd/src policies/systemd "systemd <version>" tools/systemd-resources.json
+tools/polkit2cedar.py ~/src/systemd/src policies/systemd systemd "systemd <version>" tools/systemd-resources.json
 tools/details.py policies tools/systemd-resources.json
 ```
 
@@ -131,47 +187,47 @@ The converter refuses to run if an action has no entry in `tools/systemd-resourc
 
 ### From polkit details to resources
 
-To evaluate a polkit check, CedarKit needs the resource and the attributes the model uses. The `@detail` annotations in the schemas say which polkit detail supplies each one. Details holding a user, such as `uid` or `owner_uid`, carry a numeric uid, which is resolved to the user's name. Resource types without a detail are singletons, named by each action's `@singleton`.
+To evaluate a polkit check, CedarKit needs the resource and the attributes the model uses. The `@detail` annotations in the schemas say which polkit detail supplies each one. Details holding a user, such as `uid` or `owner_uid`, carry a numeric uid, which is the user's id. Resource types without a detail are singletons, named by each action's `@singleton`.
 
 An attribute is only modelled when systemd itself uses it to decide authorization. Today that means skipping polkit for the object's owner, which `ownership.cedar` expresses as policy instead. Context details are only modelled when a policy reads them: `verb` for `machine1.manage-machines`, and `timestamp_fresh` for credentials.
 
 | Resource | Identified by | Attributes | Actions |
 |----------|---------------|------------|---------|
-| `Cgroup` | `cgroup` | – | 1 |
-| `Clock` | fixed per action | – | 3 |
-| `Credential` | `credential` | scope ← `scope`, owner? ← `uid` | 2 |
-| `Device` | `device` | – | 4 |
-| `Directory` | `directory` | – | 6 |
-| `DnssdService` | `dnssd_service` | owner ← `owner_uid` | 2 |
-| `ExtensionHierarchy` | fixed per action | – | 4 |
-| `Hardware` | fixed per action | – | 3 |
-| `Home` | `username` | owner? ← `uid` | 8 |
-| `Hostname` | `hostname_type` | – | 2 |
-| `Image` | `class`, `image` | root? ← `image_root` | 8 |
-| `ImageFile` | `image_path` | – | 5 |
-| `ImagePool` | `class` | root? ← `image_root` | 4 |
-| `InhibitTarget` | fixed per action | – | 10 |
-| `InstanceMetadata` | `wellKnown` | key? ← `key` | 1 |
-| `Keyboard` | fixed per action | – | 1 |
-| `Link` | `interface` | – | 24 |
-| `Locale` | fixed per action | – | 1 |
-| `Machine` | `machine` | owner ← `owner_uid` | 10 |
-| `MachineInfo` | `machine_info_key` | – | 1 |
-| `Manager` | fixed per action | – | 6 |
-| `NetworkConfig` | fixed per action | – | 2 |
-| `Resolver` | fixed per action | – | 8 |
-| `Seat` | `seat` | – | 2 |
-| `Session` | `session` | owner ← `owner_uid` | 2 |
-| `SigningKey` | `signing_key` | – | 1 |
-| `StorageVolume` | `name` | – | 1 |
-| `System` | fixed per action | – | 26 |
-| `TimeSync` | fixed per action | – | 1 |
-| `Timezone` | fixed per action | – | 1 |
-| `Transfer` | `transfer` | – | 1 |
-| `Unit` | `unit` | – | 1 |
-| `UpdateTarget` | `class`, `name` | – | 9 |
-| `User` | `uid` | name ← `uid`, uid ← `uid` | 4 |
-| `UserNamespace` | `name` | – | 4 |
+| `User` | `uid` | – | 4 |
+| `logind::Seat` | `seat` | – | 2 |
+| `logind::Session` | `session` | user ← built in, seat? ← built in, remote ← built in, class ← built in, type ← built in, active ← built in | 2 |
+| `systemd::Cgroup` | `cgroup` | – | 1 |
+| `systemd::Clock` | fixed per action | – | 3 |
+| `systemd::Credential` | `credential` | scope ← `scope`, owner? ← `uid` | 2 |
+| `systemd::Device` | `device` | – | 4 |
+| `systemd::Directory` | `directory` | – | 6 |
+| `systemd::DnssdService` | `dnssd_service` | owner ← `owner_uid` | 2 |
+| `systemd::ExtensionHierarchy` | fixed per action | – | 4 |
+| `systemd::Hardware` | fixed per action | – | 3 |
+| `systemd::Home` | `username` | owner? ← `uid` | 8 |
+| `systemd::Hostname` | `hostname_type` | – | 2 |
+| `systemd::Image` | `class`, `image` | root? ← `image_root` | 8 |
+| `systemd::ImageFile` | `image_path` | – | 5 |
+| `systemd::ImagePool` | `class` | root? ← `image_root` | 4 |
+| `systemd::InhibitTarget` | fixed per action | – | 10 |
+| `systemd::InstanceMetadata` | `wellKnown` | key? ← `key` | 1 |
+| `systemd::Keyboard` | fixed per action | – | 1 |
+| `systemd::Link` | `interface` | – | 24 |
+| `systemd::Locale` | fixed per action | – | 1 |
+| `systemd::Machine` | `machine` | owner ← `owner_uid` | 10 |
+| `systemd::MachineInfo` | `machine_info_key` | – | 1 |
+| `systemd::Manager` | fixed per action | – | 6 |
+| `systemd::NetworkConfig` | fixed per action | – | 2 |
+| `systemd::Resolver` | fixed per action | – | 8 |
+| `systemd::SigningKey` | `signing_key` | – | 1 |
+| `systemd::StorageVolume` | `name` | – | 1 |
+| `systemd::System` | fixed per action | – | 26 |
+| `systemd::TimeSync` | fixed per action | – | 1 |
+| `systemd::Timezone` | fixed per action | – | 1 |
+| `systemd::Transfer` | `transfer` | – | 1 |
+| `systemd::Unit` | `unit` | – | 1 |
+| `systemd::UpdateTarget` | `class`, `name` | – | 9 |
+| `systemd::UserNamespace` | `name` | – | 4 |
 
 ### systemd patches
 
@@ -185,35 +241,50 @@ Some behaviour is not modelled yet:
 ## Trying it out
 
 ```sh
-cargo run -p cedarctl -- --policies policies validate
-cargo run -p cedarctl -- --policies policies check org.freedesktop.login1.reboot \
-    --resource 'System::"local"' --local --active
+cedarctl() { cargo run -q -p cedarctl -- --vendor policies --admin local \
+    --subject-schema state/subject.cedarschema "$@"; }
 
-# The owner of a session may terminate it without authenticating
-cargo run -p cedarctl -- --policies policies check org.freedesktop.login1.manage \
-    --resource 'Session::"3"' --attr "owner=User::\"$(id -un)\""
+cedarctl validate
 
-# Run the daemon on the session bus and query it. Arguments: uid, action,
-# resource, resource attributes (entity references as (ss) type/id
-# structs), resource parents, details.
-cargo run -p cedarkitd -- --policies policies --session &
+# Asks logind about this shell's session.
+cedarctl check org.freedesktop.login1.reboot --reasons
+
+# Or pretend: none, remote, inactive or active.
+cedarctl check org.freedesktop.login1.reboot --session inactive
+
+# The owner of a machine may terminate it without authenticating.
+cedarctl check org.freedesktop.machine1.manage-machines \
+    --resource 'systemd::Machine::"box"' --attr "owner=User::\"$(id -u)\"" --detail verb=terminate
+
+# As if an admin had authenticated earlier, for this action on another clock.
+cedarctl check org.freedesktop.timedate1.set-time --auth-user root \
+    --auth-resource 'systemd::Clock::"rtc"'
+
+# Run the daemon on the session bus and query it. Arguments: the subject
+# ("" for the caller), the action, the resource (id, attributes, parents),
+# details and flags. It replies with the decision and, for a challenge, who
+# could authenticate: (uid, name, keep).
+cargo run -p cedarkitd -- --vendor policies --admin local \
+    --subject-schema state/subject.cedarschema --session &
 busctl --user call org.cedarkit.Authority1 /org/cedarkit/Authority1 \
-    org.cedarkit.Authority1 CheckAuthorization 'ussa{sv}asa{ss}' \
-    "$(id -u)" org.freedesktop.login1.manage 'Session::"3"' \
-    1 owner '(ss)' User "$(id -un)" 0 0
+    org.cedarkit.Authority1 CheckAuthorization '(sa{sv})s(sa{sv}as)a{sv}u' \
+    "" 0 org.freedesktop.login1.reboot 'systemd::System::"local"' 0 0 0 0
 ```
+
+After changing which fact providers are installed, regenerate the subject schema with `cedarctl schema update`.
 
 
 ## Roadmap
 
-- [ ] Fill in session state (`local`/`active`) from logind
-- [ ] Authenticate callers of the daemon
-- [ ] Authentication agents and running the challenge
-- [ ] Implement `org.freedesktop.PolicyKit1.Authority` so existing polkit clients work unchanged
-- [ ] Reload policies when they change on disk
 - [x] Translate systemd's polkit actions, with real resources
 - [x] Patch systemd to pass the details these resources need to polkit
-- [ ] Build resources from polkit details in the `org.freedesktop.PolicyKit1.Authority` implementation, following the `@detail` annotations
+- [x] Facts about the caller from logind
+- [x] Identify callers of the daemon from their D-Bus credentials
+- [x] Remembered authentications, matched by policy
+- [ ] Authentication agents and running the challenge
+- [ ] Forget remembered authentications when the process exits or its session ends
+- [ ] Implement `org.freedesktop.PolicyKit1.Authority` so existing polkit clients work unchanged, building resources from polkit details following the `@detail` annotations
+- [ ] Let mechanisms other than root report resources ([design, open question 1](docs/design.md#13-open-questions))
+- [ ] Reload policies when they change on disk
 - [ ] Per-action context types (job mode, inhibitor overrides, ...)
-- [ ] Temporary authorizations (`_keep`, `@implies`)
 - [ ] A built-in translator for arbitrary polkit `.policy` files
