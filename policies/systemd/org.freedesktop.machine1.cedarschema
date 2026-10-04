@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Log into a local container")
+@message("Authentication is required to log into a local container.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.login" appliesTo {
   principal: [User],
   resource: [systemd::Machine],
@@ -9,6 +13,10 @@ action "org.freedesktop.machine1.login" appliesTo {
 };
 
 @doc("Log into the local host")
+@message("Authentication is required to log into the local host.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.host-login" appliesTo {
   principal: [User],
   resource: [systemd::Machine],
@@ -16,6 +24,10 @@ action "org.freedesktop.machine1.host-login" appliesTo {
 };
 
 @doc("Acquire a shell in a local container")
+@message("Authentication is required to acquire a shell in a local container.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.login")
 action "org.freedesktop.machine1.shell" appliesTo {
   principal: [User],
@@ -24,6 +36,10 @@ action "org.freedesktop.machine1.shell" appliesTo {
 };
 
 @doc("Acquire a shell on the local host")
+@message("Authentication is required to acquire a shell on the local host.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.host-login")
 action "org.freedesktop.machine1.host-shell" appliesTo {
   principal: [User],
@@ -32,6 +48,10 @@ action "org.freedesktop.machine1.host-shell" appliesTo {
 };
 
 @doc("Acquire a pseudo TTY in a local container")
+@message("Authentication is required to acquire a pseudo TTY in a local container.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.open-pty" appliesTo {
   principal: [User],
   resource: [systemd::Machine],
@@ -39,6 +59,10 @@ action "org.freedesktop.machine1.open-pty" appliesTo {
 };
 
 @doc("Acquire a pseudo TTY on the local host")
+@message("Authentication is required to acquire a pseudo TTY on the local host.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.host-open-pty" appliesTo {
   principal: [User],
   resource: [systemd::Machine],
@@ -46,6 +70,10 @@ action "org.freedesktop.machine1.host-open-pty" appliesTo {
 };
 
 @doc("Manage local virtual machines and containers")
+@message("Authentication is required to manage local virtual machines and containers.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.shell org.freedesktop.login1.login org.freedesktop.machine1.inspect-machines")
 action "org.freedesktop.machine1.manage-machines" appliesTo {
   principal: [User],
@@ -54,6 +82,10 @@ action "org.freedesktop.machine1.manage-machines" appliesTo {
 };
 
 @doc("Inspect local virtual machines and containers")
+@message("Authentication is required to inspect local virtual machines and containers.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.machine1.inspect-machines" appliesTo {
   principal: [User],
@@ -62,6 +94,10 @@ action "org.freedesktop.machine1.inspect-machines" appliesTo {
 };
 
 @doc("Create a local virtual machine or container")
+@message("Authentication is required to create a local virtual machine or container.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.shell org.freedesktop.login1.login org.freedesktop.machine1.register-machine")
 action "org.freedesktop.machine1.create-machine" appliesTo {
   principal: [User],
@@ -70,6 +106,10 @@ action "org.freedesktop.machine1.create-machine" appliesTo {
 };
 
 @doc("Register a local virtual machine or container")
+@message("Authentication is required to register a local virtual machine or container.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.register-machine" appliesTo {
   principal: [User],
   resource: [systemd::Machine],
@@ -77,6 +117,10 @@ action "org.freedesktop.machine1.register-machine" appliesTo {
 };
 
 @doc("Manage local virtual machine and container images")
+@message("Authentication is required to manage local virtual machine and container images.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.machine1.inspect-images")
 action "org.freedesktop.machine1.manage-images" appliesTo {
   principal: [User],
@@ -85,6 +129,10 @@ action "org.freedesktop.machine1.manage-images" appliesTo {
 };
 
 @doc("Inspect local virtual machine and container images")
+@message("Authentication is required to inspect local virtual machine and container images.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.machine1.inspect-images" appliesTo {
   principal: [User],
   resource: [systemd::Image, systemd::ImagePool],

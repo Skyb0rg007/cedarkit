@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Create a home area")
+@message("Authentication is required to create a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.create-home" appliesTo {
   principal: [User],
   resource: [systemd::Home, systemd::ImageFile],
@@ -9,6 +13,10 @@ action "org.freedesktop.home1.create-home" appliesTo {
 };
 
 @doc("Remove a home area")
+@message("Authentication is required to remove a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.remove-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -16,6 +24,10 @@ action "org.freedesktop.home1.remove-home" appliesTo {
 };
 
 @doc("Check credentials of a home area")
+@message("Authentication is required to check credentials against a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.authenticate-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -23,6 +35,10 @@ action "org.freedesktop.home1.authenticate-home" appliesTo {
 };
 
 @doc("Update a home area")
+@message("Authentication is required to update a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.update-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -30,6 +46,10 @@ action "org.freedesktop.home1.update-home" appliesTo {
 };
 
 @doc("Update your home area")
+@message("Authentication is required to update your home area.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.update-home-by-owner" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -37,6 +57,10 @@ action "org.freedesktop.home1.update-home-by-owner" appliesTo {
 };
 
 @doc("Resize a home area")
+@message("Authentication is required to resize a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.resize-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -44,6 +68,10 @@ action "org.freedesktop.home1.resize-home" appliesTo {
 };
 
 @doc("Change password of a home area")
+@message("Authentication is required to change the password of a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.passwd-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -51,6 +79,10 @@ action "org.freedesktop.home1.passwd-home" appliesTo {
 };
 
 @doc("Activate a home area")
+@message("Authentication is required to activate a user's home area.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.activate-home" appliesTo {
   principal: [User],
   resource: [systemd::Home],
@@ -58,6 +90,10 @@ action "org.freedesktop.home1.activate-home" appliesTo {
 };
 
 @doc("Manage Home Directory Signing Keys")
+@message("Authentication is required to manage signing keys for home directories.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.home1.manage-signing-keys" appliesTo {
   principal: [User],
   resource: [systemd::SigningKey],

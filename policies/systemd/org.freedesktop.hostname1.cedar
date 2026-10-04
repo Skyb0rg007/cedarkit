@@ -16,8 +16,7 @@ permit (
   resource
 )
 when {
-  context.auth has user && context.auth.user in Role::"org.freedesktop.hostname1.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth has user && context.auth.user in Role::"org.freedesktop.hostname1.admin" && context.auth.action == action
 };
 
 // Implied by org.freedesktop.hostname1.set-static-hostname, remembered for it (auth_admin_keep), for any session.

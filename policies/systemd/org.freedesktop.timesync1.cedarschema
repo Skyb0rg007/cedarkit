@@ -2,6 +2,11 @@
 // Do not edit; regenerate instead.
 
 @doc("Set runtime NTP servers")
+@message("Authentication is required to set runtime NTP servers.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-timesync")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::TimeSync::\"system\"")
 action "org.freedesktop.timesync1.set-runtime-servers" appliesTo {
   principal: [User],

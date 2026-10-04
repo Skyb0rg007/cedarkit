@@ -168,7 +168,6 @@ fn auth_pattern(conjuncts: &[&Value]) -> Option<String> {
         who: bool,
         fresh: bool,
         same_action: bool,
-        same_resource: bool,
         action_in: bool,
     }
     let mut seen = Seen::default();
@@ -188,7 +187,7 @@ fn auth_pattern(conjuncts: &[&Value]) -> Option<String> {
         } else if is_auth_attr(term, "fresh") {
             seen.fresh = true;
         } else if is_auth_attr(term, "same_resource") {
-            seen.same_resource = true;
+            // A stricter scope for remembered authentications.
         } else if is_auth_attr(&eq["left"], "action") && eq["right"]["Var"] == "action" {
             seen.same_action = true;
         } else if is_auth_attr(&is_in["left"], "action")
@@ -205,7 +204,7 @@ fn auth_pattern(conjuncts: &[&Value]) -> Option<String> {
         None
     } else if !seen.has_user || !seen.who {
         Some("it should check `context.auth has user` and who the user is".into())
-    } else if !(seen.fresh || (seen.same_action && seen.same_resource) || seen.action_in) {
+    } else if !(seen.fresh || seen.same_action || seen.action_in) {
         Some("it should require a fresh authentication, or say which remembered ones count".into())
     } else {
         None

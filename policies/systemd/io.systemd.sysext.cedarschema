@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow managing (merging, unmerging, ...) of system extension images.")
+@message("Authentication is required for an application to manage a system extension image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::ExtensionHierarchy::\"sysext\"")
 action "io.systemd.sysext.manage" appliesTo {
   principal: [User],
@@ -10,6 +14,10 @@ action "io.systemd.sysext.manage" appliesTo {
 };
 
 @doc("Allow reading (listing, ...) of system extension images.")
+@message("Authentication is required for an application to list system extension images.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::ExtensionHierarchy::\"sysext\"")
 action "io.systemd.sysext.read" appliesTo {
   principal: [User],
@@ -18,6 +26,10 @@ action "io.systemd.sysext.read" appliesTo {
 };
 
 @doc("Allow managing (merging, unmerging, ...) of configuration extension images.")
+@message("Authentication is required for an application to manage a configuration extension image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::ExtensionHierarchy::\"confext\"")
 action "io.systemd.confext.manage" appliesTo {
   principal: [User],
@@ -26,6 +38,10 @@ action "io.systemd.confext.manage" appliesTo {
 };
 
 @doc("Allow reading (listing, ...) of configuration extension images.")
+@message("Authentication is required for an application to list configuration extension images.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::ExtensionHierarchy::\"confext\"")
 action "io.systemd.confext.read" appliesTo {
   principal: [User],

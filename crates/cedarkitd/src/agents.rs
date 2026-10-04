@@ -1,8 +1,12 @@
 //! Authentication agents (docs/design.md, section 9.6): one per login
 //! session, asked to authenticate when a process in that session meets a
-//! challenge. The user authenticates through PAM, which runs in
-//! `cedarkit-pam-helper`; agents only relay the conversation, so CedarKit
-//! learns the result first-hand rather than trusting an agent's report.
+//! challenge.
+//!
+//! Native agents talk Varlink. The user authenticates through PAM, which
+//! runs in `cedarkit-pam-helper`; agents only relay the conversation, so
+//! CedarKit learns the result first-hand rather than trusting an agent's
+//! report. polkit agents (section 11) run polkit's own helper, which reports
+//! the result as root, as to polkit.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +27,39 @@ pub struct PamConfig {
     pub confdir: Option<PathBuf>,
 }
 
+/// How CedarKit reaches an agent.
+pub enum Channel {
+    /// A native agent, over Varlink (`org.cedarkit.Agent`).
+    Varlink(mpsc::UnboundedSender<Event>),
+    /// A polkit agent, such as GNOME Shell's, which implements
+    /// `org.freedesktop.PolicyKit1.AuthenticationAgent` and runs PAM itself,
+    /// through polkit's helper.
+    Polkit(PolkitAgent),
+}
+
+/// Where a polkit agent is on the bus.
+#[derive(Clone)]
+pub struct PolkitAgent {
+    pub conn: zbus::Connection,
+    /// Its unique name.
+    pub name: String,
+    pub path: String,
+}
+
+const POLKIT_AGENT: &str = "org.freedesktop.PolicyKit1.AuthenticationAgent";
+
+/// What an agent is asked.
+#[derive(Debug, Clone)]
+pub struct AgentRequest {
+    pub action: String,
+    /// What the agent shows, e.g. polkit's `<message>`.
+    pub message: String,
+    pub icon: String,
+    /// polkit's details, for polkit agents.
+    pub details: HashMap<String, String>,
+    pub identities: Vec<Identity>,
+}
+
 /// The registered agents, and the requests they're handling.
 pub struct Agents {
     pam: PamConfig,
@@ -32,8 +69,7 @@ pub struct Agents {
 #[derive(Default)]
 struct Inner {
     next_id: u64,
-    /// By session id.
-    agents: HashMap<String, Agent>,
+    agents: Vec<Agent>,
     /// By cookie.
     requests: HashMap<String, Pending>,
 }
@@ -41,17 +77,25 @@ struct Inner {
 struct Agent {
     id: u64,
     uid: u32,
-    events: mpsc::UnboundedSender<Event>,
+    session: String,
+    /// Only used when the session has no other agent, as polkit's
+    /// `fallback` option.
+    fallback: bool,
+    channel: Channel,
 }
 
 struct Pending {
     agent: u64,
     agent_uid: u32,
+    /// Whether a polkit agent is handling it.
+    polkit: bool,
     identities: Vec<Identity>,
     /// Told the uid that authenticated.
     done: oneshot::Sender<u32>,
-    /// The attempt in progress.
+    /// For a native agent, the attempt in progress.
     conversation: Option<Attempt>,
+    /// For a polkit agent, who polkit's helper says authenticated.
+    authenticated: Option<u32>,
 }
 
 /// An attempt to authenticate, which ends when its sender is dropped.
@@ -118,72 +162,136 @@ impl Agents {
         self.inner.lock().expect("the agents' lock isn't poisoned")
     }
 
-    /// Registers an agent run by `uid` for `session`.
-    pub fn register(&self, session: &str, uid: u32) -> Result<Registration, AgentError> {
+    fn add(
+        &self,
+        session: &str,
+        uid: u32,
+        fallback: bool,
+        channel: Channel,
+    ) -> Result<u64, AgentError> {
         let mut inner = self.lock();
-        if inner.agents.contains_key(session) {
+        if inner
+            .agents
+            .iter()
+            .any(|a| a.session == session && a.fallback == fallback)
+        {
             return Err(AgentError::AgentExists);
         }
         inner.next_id += 1;
         let id = inner.next_id;
+        inner.agents.push(Agent {
+            id,
+            uid,
+            session: session.to_owned(),
+            fallback,
+            channel,
+        });
+        tracing::info!(session, uid, fallback, "authentication agent registered");
+        Ok(id)
+    }
+
+    /// Registers a native agent run by `uid` for `session`.
+    pub fn register(&self, session: &str, uid: u32) -> Result<Registration, AgentError> {
         let (tx, rx) = mpsc::unbounded_channel();
-        inner.agents.insert(
-            session.to_owned(),
-            Agent {
-                id,
-                uid,
-                events: tx,
-            },
-        );
-        tracing::info!(session, uid, "authentication agent registered");
+        let id = self.add(session, uid, false, Channel::Varlink(tx))?;
         Ok(Registration { id, events: rx })
+    }
+
+    /// Registers a polkit agent run by `uid` for `session`.
+    pub fn register_polkit(
+        &self,
+        session: &str,
+        uid: u32,
+        fallback: bool,
+        agent: PolkitAgent,
+    ) -> Result<u64, AgentError> {
+        self.add(session, uid, fallback, Channel::Polkit(agent))
     }
 
     /// Removes an agent, failing the requests it was handling.
     pub fn unregister(&self, id: u64) {
         let mut inner = self.lock();
-        inner.agents.retain(|session, a| {
+        inner.agents.retain(|a| {
             if a.id == id {
-                tracing::info!(session, "authentication agent unregistered");
+                tracing::info!(session = a.session, "authentication agent unregistered");
             }
             a.id != id
         });
         inner.requests.retain(|_, p| p.agent != id);
     }
 
-    /// Asks the agent for `session` to have one of `identities`
-    /// authenticate, or returns `None` if there's no agent.
-    pub fn begin(
-        self: &Arc<Self>,
-        session: &str,
-        action: &str,
-        message: &str,
-        identities: Vec<Identity>,
-    ) -> Option<Challenge> {
-        let mut inner = self.lock();
-        let agent = inner.agents.get(session)?;
-        let cookie = cookie();
-        let (done, rx) = oneshot::channel();
-        let event = Event {
-            request: Some(Request {
-                cookie: cookie.clone(),
-                action: action.to_owned(),
-                message: message.to_owned(),
-                identities: identities.clone(),
-            }),
-            cancelled: None,
-        };
-        if agent.events.send(event).is_err() {
-            return None;
+    /// Removes the polkit agents at bus name `name` (and object `path`, if
+    /// given), returning whether there were any.
+    pub fn unregister_polkit(&self, name: &str, path: Option<&str>) -> bool {
+        let ids: Vec<u64> = self
+            .lock()
+            .agents
+            .iter()
+            .filter(|a| match &a.channel {
+                Channel::Polkit(p) => p.name == name && path.is_none_or(|path| p.path == path),
+                Channel::Varlink(_) => false,
+            })
+            .map(|a| a.id)
+            .collect();
+        for id in &ids {
+            self.unregister(*id);
         }
-        let pending = Pending {
-            agent: agent.id,
-            agent_uid: agent.uid,
-            identities,
-            done,
-            conversation: None,
+        !ids.is_empty()
+    }
+
+    /// Asks the agent for `session` to have one of the request's identities
+    /// authenticate, or returns `None` if there's no agent.
+    pub fn begin(self: &Arc<Self>, session: &str, request: AgentRequest) -> Option<Challenge> {
+        let mut inner = self.lock();
+        let agent = inner
+            .agents
+            .iter()
+            .filter(|a| a.session == session)
+            .min_by_key(|a| a.fallback)?;
+        let (id, agent_uid) = (agent.id, agent.uid);
+        let cookie = cookie();
+        let polkit = match &agent.channel {
+            Channel::Varlink(events) => {
+                let event = Event {
+                    request: Some(Request {
+                        cookie: cookie.clone(),
+                        action: request.action.clone(),
+                        message: request.message.clone(),
+                        identities: request.identities.clone(),
+                    }),
+                    cancelled: None,
+                };
+                if events.send(event).is_err() {
+                    return None;
+                }
+                false
+            }
+            Channel::Polkit(agent) => {
+                let (agents, agent, cookie, request) =
+                    (self.clone(), agent.clone(), cookie.clone(), request.clone());
+                tokio::spawn(async move {
+                    let replied = begin_polkit(&agent, &cookie, &request).await;
+                    if let Err(e) = &replied {
+                        tracing::debug!(cookie, "polkit agent's request ended: {e}");
+                    }
+                    agents.polkit_finished(&cookie, replied.is_ok());
+                });
+                true
+            }
         };
-        inner.requests.insert(cookie.clone(), pending);
+        let (done, rx) = oneshot::channel();
+        inner.requests.insert(
+            cookie.clone(),
+            Pending {
+                agent: id,
+                agent_uid,
+                polkit,
+                identities: request.identities,
+                done,
+                conversation: None,
+                authenticated: None,
+            },
+        );
         Some(Challenge {
             agents: self.clone(),
             cookie,
@@ -197,22 +305,83 @@ impl Agents {
         let Some(pending) = inner.requests.remove(cookie) else {
             return;
         };
-        if let Some(agent) = inner.agents.values().find(|a| a.id == pending.agent) {
-            let _ = agent.events.send(Event {
-                request: None,
-                cancelled: Some(cookie.to_owned()),
-            });
+        let Some(agent) = inner.agents.iter().find(|a| a.id == pending.agent) else {
+            return;
+        };
+        match &agent.channel {
+            Channel::Varlink(events) => {
+                let _ = events.send(Event {
+                    request: None,
+                    cancelled: Some(cookie.to_owned()),
+                });
+            }
+            Channel::Polkit(agent) => {
+                let (agent, cookie) = (agent.clone(), cookie.to_owned());
+                tokio::spawn(async move {
+                    let result = agent
+                        .conn
+                        .call_method(
+                            Some(agent.name.as_str()),
+                            agent.path.as_str(),
+                            Some(POLKIT_AGENT),
+                            "CancelAuthentication",
+                            &(cookie.as_str(),),
+                        )
+                        .await;
+                    if let Err(e) = result {
+                        tracing::debug!(cookie, "can't cancel the polkit agent's request: {e}");
+                    }
+                });
+            }
         }
     }
 
-    /// A request of the agent run by `caller`.
+    /// Records polkit's helper saying that `identity` authenticated for a
+    /// polkit agent's request. `claimed` is the uid the helper says it ran
+    /// for, which must be the agent's, if given.
+    pub fn polkit_response(
+        &self,
+        cookie: &str,
+        claimed: Option<u32>,
+        identity: u32,
+    ) -> Result<(), String> {
+        let mut inner = self.lock();
+        let pending = match inner.requests.get_mut(cookie) {
+            Some(p) if p.polkit => p,
+            _ => return Err(format!("no authentication with cookie {cookie:?}")),
+        };
+        if claimed.is_some_and(|uid| uid != pending.agent_uid) {
+            return Err("the authentication was for another user's agent".into());
+        }
+        if !pending.identities.iter().any(|i| i.uid == identity) {
+            return Err("the authenticated identity is wrong".into());
+        }
+        pending.authenticated = Some(identity);
+        Ok(())
+    }
+
+    /// A polkit agent finished a request. It succeeded if the agent says so,
+    /// and polkit's helper reported who authenticated.
+    fn polkit_finished(&self, cookie: &str, replied: bool) {
+        let Some(pending) = self.lock().requests.remove(cookie) else {
+            return;
+        };
+        match pending.authenticated {
+            Some(uid) if replied => {
+                let _ = pending.done.send(uid);
+            }
+            _ => {}
+        }
+    }
+
+    /// A native agent's request, for the agent run by `caller`.
     fn request<'a>(
         inner: &'a mut Inner,
         caller: u32,
         cookie: &str,
     ) -> Result<&'a mut Pending, AgentError> {
         match inner.requests.get_mut(cookie) {
-            Some(p) if p.agent_uid == caller || caller == 0 => Ok(p),
+            Some(p) if !p.polkit && (p.agent_uid == caller || caller == 0) => Ok(p),
             _ => Err(AgentError::NoSuchRequest),
         }
     }
@@ -287,6 +456,39 @@ impl Agents {
         inner.requests.remove(cookie);
         Ok(())
     }
+}
+
+/// Calls a polkit agent's `BeginAuthentication`, which returns once the user
+/// has authenticated or given up.
+async fn begin_polkit(
+    agent: &PolkitAgent,
+    cookie: &str,
+    request: &AgentRequest,
+) -> zbus::Result<()> {
+    use zbus::zvariant::Value;
+    let identities: Vec<(&str, HashMap<&str, Value<'_>>)> = request
+        .identities
+        .iter()
+        .map(|i| ("unix-user", HashMap::from([("uid", Value::U32(i.uid))])))
+        .collect();
+    agent
+        .conn
+        .call_method(
+            Some(agent.name.as_str()),
+            agent.path.as_str(),
+            Some(POLKIT_AGENT),
+            "BeginAuthentication",
+            &(
+                request.action.as_str(),
+                request.message.as_str(),
+                request.icon.as_str(),
+                &request.details,
+                cookie,
+                identities,
+            ),
+        )
+        .await?;
+    Ok(())
 }
 
 /// A conversation with PAM, through `cedarkit-pam-helper`.
@@ -373,22 +575,22 @@ mod tests {
     /// A stand-in for `cedarkit-pam-helper`: asks for a password, which is
     /// "secret".
     fn agents(dir: &std::path::Path) -> Arc<Agents> {
-        use std::os::unix::fs::PermissionsExt;
-        let helper = dir.join("helper");
+        let script = dir.join("helper");
         std::fs::write(
-            &helper,
-            "#!/bin/sh\n\
-             echo '{\"info\":\"Hello\"}'\n\
+            &script,
+            "echo '{\"info\":\"Hello\"}'\n\
              echo '{\"prompt\":{\"text\":\"Password: \",\"echo\":false}}'\n\
              read -r answer\n\
              if [ \"$answer\" = '\"secret\"' ]; then echo '{\"success\":true}'; \
              else echo '{\"success\":false}'; fi\n",
         )
         .unwrap();
-        std::fs::set_permissions(&helper, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // Run as `sh SCRIPT USER`, rather than executing the script: another
+        // test forking while it's being written could make that fail with
+        // ETXTBSY.
         Arc::new(Agents::new(PamConfig {
-            helper,
-            service: "test".into(),
+            helper: "/bin/sh".into(),
+            service: script.display().to_string(),
             confdir: None,
         }))
     }
@@ -397,6 +599,16 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("cedarkitd-{name}-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    fn ask(action: &str) -> AgentRequest {
+        AgentRequest {
+            action: action.into(),
+            message: "Do it".into(),
+            icon: String::new(),
+            details: HashMap::new(),
+            identities: identities(),
+        }
     }
 
     fn identities() -> Vec<Identity> {
@@ -429,15 +641,10 @@ mod tests {
     async fn requests_and_cancellation() {
         let dir = tempdir("requests");
         let agents = agents(&dir);
-        assert!(
-            agents.begin("3", "a", "m", identities()).is_none(),
-            "no agent yet"
-        );
+        assert!(agents.begin("3", ask("a")).is_none(), "no agent yet");
 
         let mut agent = agents.register("3", ALICE).unwrap();
-        let challenge = agents
-            .begin("3", "org.example.a", "Do a", identities())
-            .unwrap();
+        let challenge = agents.begin("3", ask("org.example.a")).unwrap();
         let sent = request(agent.events.recv().await);
         assert_eq!(sent.action, "org.example.a");
         assert_eq!(sent.identities, identities());
@@ -457,17 +664,13 @@ mod tests {
         );
 
         // The user dismissing it ends the check.
-        let challenge = agents
-            .begin("3", "org.example.a", "Do a", identities())
-            .unwrap();
+        let challenge = agents.begin("3", ask("org.example.a")).unwrap();
         let sent = request(agent.events.recv().await);
         agents.dismiss(ALICE, &sent.cookie).unwrap();
         assert_eq!(challenge.wait().await, None);
 
         // So does the agent going away.
-        let challenge = agents
-            .begin("3", "org.example.a", "Do a", identities())
-            .unwrap();
+        let challenge = agents.begin("3", ask("org.example.a")).unwrap();
         agents.unregister(agent.id);
         assert_eq!(challenge.wait().await, None);
         std::fs::remove_dir_all(dir).unwrap();
@@ -490,9 +693,7 @@ mod tests {
         let dir = tempdir("auth");
         let agents = agents(&dir);
         let mut agent = agents.register("3", ALICE).unwrap();
-        let challenge = agents
-            .begin("3", "org.example.a", "Do a", identities())
-            .unwrap();
+        let challenge = agents.begin("3", ask("org.example.a")).unwrap();
         let cookie = request(agent.events.recv().await).cookie;
 
         assert_eq!(

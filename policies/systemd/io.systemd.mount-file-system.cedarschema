@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow mounting of file system image")
+@message("Authentication is required for an application to mount a file system image.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.mount-file-system.mount-image" appliesTo {
   principal: [User],
   resource: [systemd::ImageFile],
@@ -9,6 +13,10 @@ action "io.systemd.mount-file-system.mount-image" appliesTo {
 };
 
 @doc("Allow mounting of untrusted file system image")
+@message("Authentication is required for an application to mount a cryptographically unsigned file system image or an image whose cryptographic signature is not recognized.")
+@defaults("auth_admin auth_admin auth_admin")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.mount-file-system.mount-image")
 action "io.systemd.mount-file-system.mount-untrusted-image" appliesTo {
   principal: [User],
@@ -17,6 +25,10 @@ action "io.systemd.mount-file-system.mount-untrusted-image" appliesTo {
 };
 
 @doc("Allow private mounting of trusted file system image")
+@message("Authentication is required for an application to privately mount a file system image or an image whose cryptographic signature is recognized.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.mount-file-system.mount-image-privately" appliesTo {
   principal: [User],
   resource: [systemd::ImageFile],
@@ -24,6 +36,10 @@ action "io.systemd.mount-file-system.mount-image-privately" appliesTo {
 };
 
 @doc("Allow private mounting of untrusted file system image")
+@message("Authentication is required for an application to privately mount a cryptographically unsigned file system image or an image whose cryptographic signature is not recognized.")
+@defaults("auth_admin auth_admin auth_admin")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.mount-file-system.mount-image-privately")
 action "io.systemd.mount-file-system.mount-untrusted-image-privately" appliesTo {
   principal: [User],
@@ -32,6 +48,10 @@ action "io.systemd.mount-file-system.mount-untrusted-image-privately" appliesTo 
 };
 
 @doc("Allow mounting of directory")
+@message("Authentication is required for an application to mount directory $(directory).")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.mount-file-system.mount-directory" appliesTo {
   principal: [User],
   resource: [systemd::Directory],
@@ -39,6 +59,10 @@ action "io.systemd.mount-file-system.mount-directory" appliesTo {
 };
 
 @doc("Allow mounting of untrusted directory")
+@message("Authentication is required for an application to mount directory $(directory) which is not owned by the user.")
+@defaults("auth_admin auth_admin auth_admin")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.mount-file-system.mount-directory")
 action "io.systemd.mount-file-system.mount-untrusted-directory" appliesTo {
   principal: [User],
@@ -47,6 +71,10 @@ action "io.systemd.mount-file-system.mount-untrusted-directory" appliesTo {
 };
 
 @doc("Allow private mounting of directory")
+@message("Authentication is required for an application to privately mount directory $(directory).")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.mount-file-system.mount-directory-privately" appliesTo {
   principal: [User],
   resource: [systemd::Directory],
@@ -54,6 +82,10 @@ action "io.systemd.mount-file-system.mount-directory-privately" appliesTo {
 };
 
 @doc("Allow private mounting of untrusted directory")
+@message("Authentication is required for an application to privately mount directory $(directory) which is not owned by the user.")
+@defaults("auth_admin auth_admin auth_admin")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.mount-file-system.mount-directory-privately")
 action "io.systemd.mount-file-system.mount-untrusted-directory-privately" appliesTo {
   principal: [User],
@@ -62,6 +94,10 @@ action "io.systemd.mount-file-system.mount-untrusted-directory-privately" applie
 };
 
 @doc("Allow creating directory owned by the foreign UID range")
+@message("Authentication is required for an application to create $(directory) owned by the foreign UID range.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.mount-file-system.make-directory" appliesTo {
   principal: [User],
   resource: [systemd::Directory],
@@ -69,6 +105,10 @@ action "io.systemd.mount-file-system.make-directory" appliesTo {
 };
 
 @doc("Allow creating directory owned by the foreign UID range below directory not owned by the user")
+@message("Authentication is required for an application to create $(directory) owned by the foreign UID range, below a directory not owned by the user.")
+@defaults("auth_admin auth_admin auth_admin")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.mount-file-system.make-directory")
 action "io.systemd.mount-file-system.make-directory-untrusted" appliesTo {
   principal: [User],

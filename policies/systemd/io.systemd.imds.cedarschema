@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Acquire IMDS instance metadata.")
+@message("Authentication is required for an application to acquire IMDS instance metadata.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.imds.get" appliesTo {
   principal: [User],
   resource: [systemd::InstanceMetadata],

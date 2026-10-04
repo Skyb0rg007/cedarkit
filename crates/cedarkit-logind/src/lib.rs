@@ -67,7 +67,12 @@ pub struct ProcessInfo {
 impl ProcessInfo {
     /// The facts for process `pid`, as `logind::Process::"<pid>"`.
     pub fn facts(&self, pid: u32) -> Facts {
-        let mut process = Resource::new(uid("Process", &pid.to_string()))
+        self.facts_for(&pid.to_string())
+    }
+
+    /// The facts, as `logind::Process::"<id>"`.
+    pub fn facts_for(&self, id: &str) -> Facts {
+        let mut process = Resource::new(uid("Process", id))
             .with_attr("user_active", AttrValue::Bool(self.user_active));
         let mut related = Vec::new();
         for (attr, session) in [("session", &self.session), ("display", &self.display)] {
@@ -185,6 +190,32 @@ impl Logind {
             display,
             user_active: state == "active",
         })
+    }
+
+    /// What logind knows about a session, as if about a process in it: for
+    /// polkit's `unix-session` subjects. `None` if there's no such session.
+    pub async fn session_info(&self, id: &str) -> zbus::Result<Option<ProcessInfo>> {
+        let Some(session) = self.session(id).await? else {
+            return Ok(None);
+        };
+        let manager = self.manager().await?;
+        let user: OwnedObjectPath = match manager.call("GetUser", &(session.uid,)).await {
+            Ok(path) => path,
+            Err(e) if is_missing(&e) => {
+                return Ok(Some(ProcessInfo {
+                    session: Some(session),
+                    ..ProcessInfo::default()
+                }));
+            }
+            Err(e) => return Err(e),
+        };
+        let p = self.proxy(&user, "org.freedesktop.login1.User").await?;
+        let state: String = p.get_property("State").await?;
+        Ok(Some(ProcessInfo {
+            session: Some(session),
+            display: None,
+            user_active: state == "active",
+        }))
     }
 
     /// Fills in a `logind::Session` resource from logind. Other resources

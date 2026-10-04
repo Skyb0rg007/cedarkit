@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow user namespace allocation")
+@message("Authentication is required for an application to allocate a user namespace '$(name)' with an automatically assigned transient UID range.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.namespace-resource.register-user-namespace")
 action "io.systemd.namespace-resource.allocate-user-namespace" appliesTo {
   principal: [User],
@@ -10,6 +14,10 @@ action "io.systemd.namespace-resource.allocate-user-namespace" appliesTo {
 };
 
 @doc("Allow user namespace registration")
+@message("Authentication is required for an application to register a user namespace '$(name)'.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("io.systemd.namespace-resource.allocate-user-namespace")
 action "io.systemd.namespace-resource.register-user-namespace" appliesTo {
   principal: [User],
@@ -18,6 +26,10 @@ action "io.systemd.namespace-resource.register-user-namespace" appliesTo {
 };
 
 @doc("Allow adding a mount to a user namespace")
+@message("Authentication is required for an application to add a mount to a user namespace.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.namespace-resource.delegate-mount" appliesTo {
   principal: [User],
   resource: [systemd::UserNamespace],
@@ -25,6 +37,10 @@ action "io.systemd.namespace-resource.delegate-mount" appliesTo {
 };
 
 @doc("Allow adding a control group to a user namespace")
+@message("Authentication is required for an application to add a control group to a user namespace.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.namespace-resource.delegate-cgroup" appliesTo {
   principal: [User],
   resource: [systemd::Cgroup],
@@ -32,6 +48,10 @@ action "io.systemd.namespace-resource.delegate-cgroup" appliesTo {
 };
 
 @doc("Allow adding a network interface to a user namespace")
+@message("Authentication is required for an application to add a network interface of type $(type) to a user namespace.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.namespace-resource.delegate-network-interface" appliesTo {
   principal: [User],
   resource: [systemd::UserNamespace],

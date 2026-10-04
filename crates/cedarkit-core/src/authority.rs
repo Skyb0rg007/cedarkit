@@ -7,7 +7,7 @@ use cedar_policy::{
 
 use crate::entities::{Member, Memberships};
 use crate::policies;
-use crate::schema::{self, Declarations, DetailType, Fragment};
+use crate::schema::{self, Declarations, Fragment};
 use crate::sources::{self, Kind, Layout, Origin, Source};
 use crate::{AttrValue, Directory, Error, Nss, Resource, Result, Subject, User, entity_uid};
 
@@ -106,6 +106,8 @@ pub struct ChallengeOption {
 pub struct Outcome {
     pub decision: Decision,
     pub reasons: Vec<String>,
+    /// For an allow, the authentication it needed, if any.
+    pub authentication: Option<Authentication>,
 }
 
 impl Outcome {
@@ -113,6 +115,7 @@ impl Outcome {
         Self {
             decision: Decision::Deny,
             reasons: vec![reason.into()],
+            authentication: None,
         }
     }
 }
@@ -128,7 +131,7 @@ pub struct Loaded {
 pub struct Authority {
     policies: PolicySet,
     schema: Schema,
-    decls: Declarations,
+    pub(crate) decls: Declarations,
     /// The fact providers the subject schema declares.
     providers: BTreeSet<String>,
     memberships: Memberships,
@@ -256,28 +259,14 @@ impl Authority {
         else {
             return Ok(HashMap::new());
         };
-        let invalid = |key: &str, value: &str, ty: &DetailType| {
-            Error::Request(format!("detail {key:?}: {value:?} isn't a {ty:?}"))
-        };
         let mut out = HashMap::new();
         for (key, value) in details {
             let Some(ty) = declared.get(key) else {
                 continue;
             };
-            let parsed = match ty {
-                DetailType::String => AttrValue::String(value.clone()),
-                DetailType::Long => {
-                    AttrValue::Long(value.parse().map_err(|_| invalid(key, value, ty))?)
-                }
-                DetailType::Bool => AttrValue::Bool(match value.as_str() {
-                    "true" | "1" | "yes" => true,
-                    "false" | "0" | "no" => false,
-                    _ => return Err(invalid(key, value, ty)),
-                }),
-                DetailType::Entity(_) if value.contains("::") => value.parse()?,
-                DetailType::Entity(name) => AttrValue::Entity(entity_uid(name, value)?),
-                DetailType::Other => return Err(invalid(key, value, ty)),
-            };
+            let parsed = crate::polkit::detail_value(ty, value).ok_or_else(|| {
+                Error::Request(format!("detail {key:?}: {value:?} isn't a {ty:?}"))
+            })?;
             out.insert(key.clone(), parsed);
         }
         Ok(out)
@@ -319,6 +308,7 @@ impl Authority {
                 return Ok(Outcome {
                     decision: Decision::Allow,
                     reasons,
+                    authentication: None,
                 });
             }
             Eval::Deny(forbids) => forbids,
@@ -348,6 +338,7 @@ impl Authority {
                     return Ok(Outcome {
                         decision: Decision::Allow,
                         reasons,
+                        authentication: Some(auth.clone()),
                     });
                 }
                 Ok(Eval::Deny(_)) => {}
@@ -394,11 +385,13 @@ impl Authority {
             return Ok(Outcome {
                 decision: Decision::Deny,
                 reasons,
+                authentication: None,
             });
         }
         Ok(Outcome {
             decision: Decision::Challenge(options),
             reasons: Vec::new(),
+            authentication: None,
         })
     }
 

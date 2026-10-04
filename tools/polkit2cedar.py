@@ -62,7 +62,8 @@ SESSIONS = {
 # polkit's results, as conditions on how the subject has authenticated
 # (`context.auth`): auth_self asks for the subject's own password, and
 # auth_admin for that of anyone in `role`. `_keep` also accepts an
-# authentication remembered for the same action and resource.
+# authentication remembered for the same action, on any resource, as polkit's
+# temporary authorizations.
 WHO = {
     "self": "context.auth has user && context.auth.user == principal",
     "admin": "context.auth has user && context.auth.user in Role::{role}",
@@ -77,7 +78,7 @@ def auth_condition(result, role):
     if result == "yes":
         return None
     if result.endswith("_keep"):
-        return f"{who(result, role)} &&\n  context.auth.action == action && context.auth.same_resource"
+        return f"{who(result, role)} && context.auth.action == action"
     return f"{who(result, role)} && context.auth.fresh"
 
 
@@ -114,7 +115,8 @@ def find_policy_files(src):
 
 def parse_actions(path):
     actions = []
-    for a in ET.parse(path).getroot().findall("action"):
+    root = ET.parse(path).getroot()
+    for a in root.findall("action"):
         d = a.find("defaults")
         defaults = {
             c: ((d.findtext(f"allow_{c}") or "no").strip() if d is not None else "no")
@@ -125,8 +127,13 @@ def parse_actions(path):
             dict(
                 id=a.get("id"),
                 desc=(a.findtext("description") or "").strip(),
+                message=(a.findtext("message") or "").strip(),
+                vendor=(a.findtext("vendor") or root.findtext("vendor") or "").strip(),
+                vendor_url=(a.findtext("vendor_url") or root.findtext("vendor_url") or "").strip(),
+                icon=(a.findtext("icon_name") or root.findtext("icon_name") or "").strip(),
                 defaults=defaults,
                 implies=ann.get("org.freedesktop.policykit.imply", "").split(),
+                owners=ann.get("org.freedesktop.policykit.owner", "").split(),
             )
         )
     return actions
@@ -138,6 +145,15 @@ def write_schema(path, header, actions, resources):
         r = resources[a["id"]]
         out.append("")
         out.append(f"@doc({q(a['desc'])})")
+        # For the polkit-compatible front end (docs/design.md, section 11).
+        if a["message"]:
+            out.append(f"@message({q(a['message'])})")
+        out.append(f"@defaults({q(' '.join(a['defaults'][c] for c in COLS))})")
+        if a["owners"]:
+            out.append(f"@owners({q(' '.join(a['owners']))})")
+        for key in ("vendor", "vendor_url", "icon"):
+            if a[key]:
+                out.append(f"@{key}({q(a[key])})")
         if a["implies"]:
             out.append(f"@implies({q(' '.join(a['implies']))})")
         if "id" in r:

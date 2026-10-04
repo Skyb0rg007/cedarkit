@@ -14,8 +14,7 @@ permit (
   resource
 )
 when {
-  context.auth has user && context.auth.user in Role::"org.freedesktop.timedate1.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth has user && context.auth.user in Role::"org.freedesktop.timedate1.admin" && context.auth.action == action
 };
 
 // Implied by org.freedesktop.timedate1.set-time, remembered for it (auth_admin_keep), for any session.

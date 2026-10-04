@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Send passphrase back to system")
+@message("Authentication is required to send the entered passphrase back to the system.")
+@defaults("no no auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.systemd1.reply-password" appliesTo {
   principal: [User],
@@ -10,6 +14,10 @@ action "org.freedesktop.systemd1.reply-password" appliesTo {
 };
 
 @doc("Manage system services or other units")
+@message("Authentication is required to manage system services or other units.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.manage-units" appliesTo {
   principal: [User],
@@ -18,6 +26,10 @@ action "org.freedesktop.systemd1.manage-units" appliesTo {
 };
 
 @doc("Manage system service or unit files")
+@message("Authentication is required to manage system service or unit files.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.systemd1.reload-daemon org.freedesktop.systemd1.manage-units")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.manage-unit-files" appliesTo {
@@ -27,6 +39,10 @@ action "org.freedesktop.systemd1.manage-unit-files" appliesTo {
 };
 
 @doc("Set or unset system and service manager environment variables")
+@message("Authentication is required to set or unset system and service manager environment variables.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.set-environment" appliesTo {
   principal: [User],
@@ -35,6 +51,10 @@ action "org.freedesktop.systemd1.set-environment" appliesTo {
 };
 
 @doc("Configure the display of status messages")
+@message("Authentication is required to configure the display of status messages.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.set-show-status" appliesTo {
   principal: [User],
@@ -43,6 +63,10 @@ action "org.freedesktop.systemd1.set-show-status" appliesTo {
 };
 
 @doc("Reload the systemd state")
+@message("Authentication is required to reload the systemd state.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.reload-daemon" appliesTo {
   principal: [User],
@@ -51,6 +75,10 @@ action "org.freedesktop.systemd1.reload-daemon" appliesTo {
 };
 
 @doc("Dump the systemd state without rate limits")
+@message("Authentication is required to dump the systemd state without rate limits.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Manager::\"system\"")
 action "org.freedesktop.systemd1.bypass-dump-ratelimit" appliesTo {
   principal: [User],

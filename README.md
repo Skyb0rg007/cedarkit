@@ -32,7 +32,7 @@ cargo test
 | `policies/systemd/`          | systemd's polkit actions translated to Cedar (see below)           |
 | `state/subject.cedarschema`  | The generated subject schema for `policies/`                       |
 | `tools/`                     | `polkit2cedar.py`, `details.py`, and the systemd action → resource map |
-| `data/`                      | D-Bus configuration, the `cedarkit` PAM service, and the agent's autostart entry |
+| `data/`                      | D-Bus configuration (CedarKit's, and polkit's for `--polkit`), the `cedarkit` PAM service, and the agent's autostart entry |
 
 
 ## Policy model
@@ -64,13 +64,15 @@ polkit's results become ordinary conditions on it:
 | polkit            | Cedar condition |
 |-------------------|-----------------|
 | `yes`             | none |
-| `auth_self_keep`  | `context.auth has user && context.auth.user == principal && context.auth.action == action && context.auth.same_resource` |
+| `auth_self_keep`  | `context.auth has user && context.auth.user == principal && context.auth.action == action` |
 | `auth_self`       | `context.auth has user && context.auth.user == principal && context.auth.fresh` |
-| `auth_admin_keep` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.action == action && context.auth.same_resource` |
+| `auth_admin_keep` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.action == action` |
 | `auth_admin`      | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.fresh` |
 | `no`              | no policy at all, since Cedar denies by default |
 
-So by default, a remembered authentication counts for the same action on the same resource. A policy can accept more, for example any of a group of related actions.
+So by default, a remembered authentication counts for the same action on any resource, as polkit's temporary authorizations do. A policy can accept less, by also requiring `context.auth.same_resource`, or more, for example any of a group of related actions.
+
+As in polkit, an authentication is only remembered after a `_keep` challenge, for the process that asked (and sibling processes in the same terminal), until it expires after 5 minutes (polkit's `ExpirationSeconds`) or the process exits.
 
 ### Roles
 
@@ -104,6 +106,10 @@ When a check is a challenge and the caller allows interaction, `cedarkitd` asks 
 
 Agents talk to `cedarkitd` over [Varlink](https://varlink.org/), as `org.cedarkit.Agent` on `/run/cedarkit/org.cedarkit.Agent`. They only relay PAM's conversation: PAM runs in `cedarkit-pam-helper`, which `cedarkitd` starts as root, so `cedarkitd` sees the result itself. A successful authentication is remembered for the process that asked. If the caller gives up first (`CancelCheckAuthorization`, leaving the bus, or the process exiting), the dialog closes and the check is denied.
 
+### Standing in for polkit
+
+`cedarkitd --polkit` also serves polkit's own D-Bus interface, `org.freedesktop.PolicyKit1`, so unmodified polkit clients (`pkcheck`, systemd, GNOME) and polkit's authentication agents (GNOME Shell's, `pkttyagent`) work with it in place of polkitd. Resources are built from the details mechanisms pass, following the schema's `@detail` annotations, so systemd needs the [patches](#systemd-patches) that pass them; anything that can't be resolved is denied. Install `data/org.freedesktop.PolicyKit1.conf` in place of polkit's bus configuration, and stop polkitd.
+
 polkit's labels (`auth_self`, `auth_admin_keep`, ...) only exist for polkit compatibility: `auth_self` if the caller is the only option, otherwise `auth_admin`, and `_keep` if remembered authentications would be accepted.
 
 ### polkit's session columns
@@ -135,7 +141,7 @@ when {
 permit (principal, action in [Action::"org.freedesktop.login1.reboot", ...], resource)
 when {
   context.auth has user && context.auth.user in Role::"org.freedesktop.login1.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth.action == action
 };
 ```
 
@@ -300,6 +306,18 @@ busctl --user call --timeout=120 org.cedarkit.Authority1 /org/cedarkit/Authority
     "" 0 org.freedesktop.timedate1.set-time 'systemd::Clock::"system"' 0 0 0 1 ""
 ```
 
+To try the polkit front end with polkit's own tools, point them at the session bus:
+
+```sh
+target/debug/cedarkitd --vendor policies --admin local --subject-schema state/subject.cedarschema \
+    --session --polkit &
+export DBUS_SYSTEM_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS
+pkaction --action-id org.freedesktop.login1.reboot --verbose
+pkcheck --process $$ --action-id org.freedesktop.timedate1.set-time
+pkcheck --process $$ --action-id org.freedesktop.machine1.shell \
+    --detail machine box --detail owner_uid "$(id -u)"
+```
+
 After changing which fact providers are installed, regenerate the subject schema with `cedarctl schema update`.
 
 
@@ -311,8 +329,8 @@ After changing which fact providers are installed, regenerate the subject schema
 - [x] Identify callers of the daemon from their D-Bus credentials
 - [x] Remembered authentications, matched by policy
 - [x] Authentication agents and running the challenge
-- [ ] Forget remembered authentications when the process exits or its session ends
-- [ ] Implement `org.freedesktop.PolicyKit1.Authority` so existing polkit clients work unchanged, building resources from polkit details following the `@detail` annotations
+- [x] Forget remembered authentications when they expire or the process exits, as polkit
+- [x] Implement `org.freedesktop.PolicyKit1.Authority` so existing polkit clients work unchanged, building resources from polkit details following the `@detail` annotations
 - [ ] Let mechanisms other than root report resources ([design, open question 1](docs/design.md#13-open-questions))
 - [ ] Reload policies when they change on disk
 - [ ] Per-action context types (job mode, inhibitor overrides, ...)

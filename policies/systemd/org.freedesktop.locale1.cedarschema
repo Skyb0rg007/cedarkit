@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Set system locale")
+@message("Authentication is required to set the system locale.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.locale1.set-keyboard")
 @singleton("systemd::Locale::\"system\"")
 action "org.freedesktop.locale1.set-locale" appliesTo {
@@ -11,6 +15,10 @@ action "org.freedesktop.locale1.set-locale" appliesTo {
 };
 
 @doc("Set system keyboard settings")
+@message("Authentication is required to set the system keyboard settings.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Keyboard::\"system\"")
 action "org.freedesktop.locale1.set-keyboard" appliesTo {
   principal: [User],

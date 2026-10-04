@@ -398,3 +398,91 @@ fn admins_can_tighten_defaults() {
     let uids: Vec<u32> = options.iter().map(|o| o.uid).collect();
     assert_eq!(uids, [ALICE, BOB]);
 }
+
+/// The polkit-compatible front end builds resources from systemd's details.
+#[test]
+fn resources_from_polkit_details() {
+    let authority = load(vec![]);
+    let resource = |action: &str, details: &[(&str, &str)]| {
+        let details: HashMap<String, String> = details
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        authority
+            .polkit_resource(action, &details)
+            .map(|r| (r.uid.to_string(), r.attrs))
+    };
+    let id = |action: &str, details: &[(&str, &str)]| resource(action, details).unwrap().0;
+
+    // Singletons need no details.
+    assert_eq!(
+        id("org.freedesktop.login1.reboot", &[]),
+        r#"systemd::System::"local""#
+    );
+    // The first resource type the details identify.
+    assert_eq!(
+        id("org.freedesktop.login1.manage", &[("session", "3")]),
+        r#"logind::Session::"3""#
+    );
+    assert_eq!(
+        id("org.freedesktop.login1.manage", &[("uid", "1000")]),
+        r#"User::"1000""#
+    );
+    assert_eq!(
+        id("org.freedesktop.login1.manage", &[("seat", "seat0")]),
+        r#"logind::Seat::"seat0""#
+    );
+    // Several details make up an id.
+    assert_eq!(
+        id(
+            "org.freedesktop.import1.pull",
+            &[("class", "machine"), ("image", "fedora")]
+        ),
+        r#"systemd::Image::"machine:fedora""#
+    );
+    // Attributes come from details, typed as the schema says.
+    let (machine, attrs) = resource(
+        "org.freedesktop.machine1.shell",
+        &[("machine", "box"), ("owner_uid", "1000")],
+    )
+    .unwrap();
+    assert_eq!(machine, r#"systemd::Machine::"box""#);
+    assert_eq!(attrs["owner"], owner(ALICE));
+    // A required attribute's detail is missing, and there's no singleton.
+    assert!(resource("org.freedesktop.machine1.shell", &[("machine", "box")]).is_err());
+    assert!(resource("org.freedesktop.machine1.shell", &[]).is_err());
+    // A detail of the wrong type.
+    assert!(
+        resource(
+            "org.freedesktop.machine1.shell",
+            &[("machine", "box"), ("owner_uid", "nobody")]
+        )
+        .is_err()
+    );
+}
+
+/// polkit's descriptions of actions, for `EnumerateActions`.
+#[test]
+fn polkit_action_descriptions() {
+    let authority = load(vec![]);
+    let actions = authority.polkit_actions();
+    assert_eq!(actions.len(), 158);
+    let reboot = actions
+        .iter()
+        .find(|a| a.id == "org.freedesktop.login1.reboot")
+        .unwrap();
+    assert_eq!(reboot.description, "Reboot the system");
+    assert_eq!(
+        reboot.message,
+        "Authentication is required to reboot the system."
+    );
+    assert_eq!(
+        reboot.defaults,
+        ["auth_admin_keep", "auth_admin_keep", "yes"]
+    );
+    assert_eq!(
+        authority.owners("org.freedesktop.network1.set-ntp-servers"),
+        ["unix-user:systemd-network"]
+    );
+    assert!(authority.owners("org.freedesktop.login1.reboot").is_empty());
+}

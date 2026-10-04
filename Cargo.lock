@@ -410,6 +410,7 @@ dependencies = [
  "clap",
  "futures-util",
  "libc",
+ "nix",
  "serde",
  "serde_json",
  "tokio",

@@ -112,7 +112,11 @@ pub async fn process_exited(process: ProcessId) {
     // SAFETY: the fd was just opened, and nothing else owns it.
     let fd = unsafe { OwnedFd::from_raw_fd(fd as i32) };
     // The pid may have been reused since the check began.
-    if crate::process(process.pid, Some(0)).ok().map(|p| p.id) != Some(process) {
+    if crate::state::process(process.pid, Some(0))
+        .ok()
+        .map(|p| p.id)
+        != Some(process)
+    {
         return;
     }
     // A pidfd becomes readable when its process exits.
@@ -139,7 +143,7 @@ mod tests {
             .arg("30")
             .spawn()
             .unwrap();
-        let process = crate::process(child.id(), Some(0)).unwrap().id;
+        let process = crate::state::process(child.id(), Some(0)).unwrap().id;
         let watch = tokio::spawn(process_exited(process));
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(!watch.is_finished());

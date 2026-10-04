@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Enroll an unlock mechanism into an encrypted volume")
+@message("Authentication is required to enroll a new unlock mechanism into an encrypted volume.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.cryptenroll.enroll" appliesTo {
   principal: [User],
   resource: [systemd::Device],

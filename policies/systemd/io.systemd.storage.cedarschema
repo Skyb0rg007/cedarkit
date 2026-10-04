@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow access to block storage volumes")
+@message("Authentication is required for an application to gain access to block storage volume '$(name)'.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.storage.block.acquire" appliesTo {
   principal: [User],
   resource: [systemd::Device],
@@ -9,6 +13,10 @@ action "io.systemd.storage.block.acquire" appliesTo {
 };
 
 @doc("Allow access to file system storage volumes")
+@message("Authentication is required for an application to gain access to file system storage volume '$(name)'.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.storage.fs.acquire" appliesTo {
   principal: [User],
   resource: [systemd::StorageVolume],

@@ -30,11 +30,11 @@ const PROVIDER: &str = r#"
 
 const SUBJECT: &str = "entity Subject { fake?: fake::Process };";
 
-const SELF_KEEP: &str = "context.auth has user && context.auth.user == principal && \
-    context.auth.action == action && context.auth.same_resource";
+const SELF_KEEP: &str =
+    "context.auth has user && context.auth.user == principal && context.auth.action == action";
 const SELF: &str = "context.auth has user && context.auth.user == principal && context.auth.fresh";
 const ADMIN_KEEP: &str = r#"context.auth has user && context.auth.user in Role::"org.example.admin" &&
-    context.auth.action == action && context.auth.same_resource"#;
+    context.auth.action == action"#;
 const ADMIN: &str = r#"context.auth has user && context.auth.user in Role::"org.example.admin" && context.auth.fresh"#;
 
 /// `wheel` is in `Role::"admin"`, which is in the application's admin role.
@@ -354,13 +354,13 @@ fn authenticating() {
     // A remembered password of the subject's doesn't do for auth_self.
     let still = with(Authentication::fresh(ALICE, &req).remembered());
     assert!(matches!(still, Decision::Challenge(_)));
-    // By default, a remembered authentication only counts for the same
-    // action on the same resource.
+    // By default, a remembered authentication counts for the same action,
+    // on any resource, as polkit's temporary authorizations.
     let elsewhere = Authentication {
         resource: machine(ALICE).uid,
         ..bob.clone().remembered()
     };
-    assert!(matches!(with(elsewhere), Decision::Challenge(_)));
+    assert_eq!(with(elsewhere.clone()), Decision::Allow);
     let other_action = Authentication {
         action: "org.example.other".into(),
         ..bob.clone().remembered()
@@ -371,6 +371,28 @@ fn authenticating() {
         with(Authentication::fresh(DAVE, &req)),
         Decision::Challenge(_)
     ));
+}
+
+/// A policy can scope remembered authentications to the resource they were
+/// given for.
+#[test]
+fn remembered_for_the_same_resource() {
+    let authority = authority(&permit(&format!(
+        "{ADMIN_KEEP} && context.auth.same_resource"
+    )));
+    let with = |resource| {
+        let mut req = request(ALICE, "org.example.action");
+        req.authentications.push(Authentication {
+            user: BOB,
+            fresh: false,
+            action: "org.example.action".into(),
+            resource,
+        });
+        decide(&authority, &req)
+    };
+    assert_eq!(with(system().uid), Decision::Allow);
+    assert!(matches!(with(machine(ALICE).uid), Decision::Challenge(_)));
+    assert_eq!(authority.lint(), Vec::<String>::new());
 }
 
 /// Policies decide when a remembered authentication counts for more

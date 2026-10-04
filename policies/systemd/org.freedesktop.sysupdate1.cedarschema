@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Check for system updates")
+@message("Authentication is required to check for system updates.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.check" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -9,6 +13,10 @@ action "org.freedesktop.sysupdate1.check" appliesTo {
 };
 
 @doc("Cancel checking for system updates")
+@message("Authentication is required to cancel checking for system updates.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.cancel-check" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -16,6 +24,10 @@ action "org.freedesktop.sysupdate1.cancel-check" appliesTo {
 };
 
 @doc("Install system updates")
+@message("Authentication is required to install system updates.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.update" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -23,6 +35,10 @@ action "org.freedesktop.sysupdate1.update" appliesTo {
 };
 
 @doc("Cancel installing system updates")
+@message("Authentication is required to cancel installing system updates.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.cancel-update" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -30,6 +46,10 @@ action "org.freedesktop.sysupdate1.cancel-update" appliesTo {
 };
 
 @doc("Install specific system version")
+@message("Authentication is required to update the system to a specific (possibly old) version.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.update-to-version" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -37,6 +57,10 @@ action "org.freedesktop.sysupdate1.update-to-version" appliesTo {
 };
 
 @doc("Cancel installing specific system version")
+@message("Authentication is required to cancel updating the system to a specific (possibly old) version.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.cancel-update-to-version" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -44,6 +68,10 @@ action "org.freedesktop.sysupdate1.cancel-update-to-version" appliesTo {
 };
 
 @doc("Clean up old system updates")
+@message("Authentication is required to clean up old system updates.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.vacuum" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -51,6 +79,10 @@ action "org.freedesktop.sysupdate1.vacuum" appliesTo {
 };
 
 @doc("Cancel cleaning up old system updates")
+@message("Authentication is required to cancel cleanup of old system updates.")
+@defaults("auth_admin auth_admin yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.cancel-vacuum" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],
@@ -58,6 +90,10 @@ action "org.freedesktop.sysupdate1.cancel-vacuum" appliesTo {
 };
 
 @doc("Manage optional features")
+@message("Authentication is required to manage optional features.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.sysupdate1.manage-features" appliesTo {
   principal: [User],
   resource: [systemd::UpdateTarget],

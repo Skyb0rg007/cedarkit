@@ -24,6 +24,5 @@ permit (
   resource
 )
 when {
-  context.auth has user && context.auth.user in Role::"io.systemd.ask-password.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth has user && context.auth.user in Role::"io.systemd.ask-password.admin" && context.auth.action == action
 };

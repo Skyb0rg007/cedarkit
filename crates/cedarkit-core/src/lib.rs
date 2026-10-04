@@ -33,7 +33,7 @@ pub use facts::{Facts, Subject};
 pub use identity::{Directory, Group, Nss, User};
 pub use resource::{AttrValue, Resource, entity_uid};
 pub use sources::{Kind, Layout, Origin, Source, read_sources, read_subject_schema};
-pub use store::{AuthStore, DEFAULT_LIFETIME, ProcessId};
+pub use store::{AuthStore, DEFAULT_LIFETIME, Holder, ProcessId, Remembered};
 
 #[cfg(test)]
 mod tests;

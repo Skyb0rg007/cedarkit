@@ -30,8 +30,7 @@ when {
   context.subject.logind.user_active
 }
 when {
-  context.auth has user && context.auth.user in Role::"io.systemd.sysext.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth has user && context.auth.user in Role::"io.systemd.sysext.admin" && context.auth.action == action
 };
 
 // Requires auth_admin for any session.

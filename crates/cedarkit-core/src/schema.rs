@@ -74,6 +74,29 @@ pub(crate) struct ActionInfo {
     pub singleton: Option<EntityUid>,
     /// What it does, from `@doc`.
     pub description: Option<String>,
+    /// The resource types it applies to, fully qualified, in order.
+    pub resource_types: Vec<String>,
+    /// Its annotations, such as polkit's `@message`.
+    pub annotations: BTreeMap<String, String>,
+}
+
+/// How the polkit-compatible front end builds a resource of some type from
+/// polkit's details (`@detail`, docs/design.md, section 6.4).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ResourceType {
+    /// The detail that identifies it, or a template naming several, such as
+    /// `{class}:{image}`.
+    pub detail: Option<String>,
+    /// The attributes details supply.
+    pub attrs: Vec<DetailAttr>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct DetailAttr {
+    pub name: String,
+    pub detail: String,
+    pub ty: DetailType,
+    pub required: bool,
 }
 
 /// What the schema files declare, beyond what Cedar's schema API exposes.
@@ -85,6 +108,8 @@ pub(crate) struct Declarations {
     pub prefixes: BTreeMap<String, Vec<String>>,
     /// Each fact provider's `@subject` type, by namespace.
     pub providers: BTreeMap<String, String>,
+    /// Entity types, fully qualified, with how polkit's details describe them.
+    pub resource_types: HashMap<String, ResourceType>,
 }
 
 impl Declarations {
@@ -104,6 +129,9 @@ impl Declarations {
                         .extend(prefixes.split_whitespace().map(str::to_owned));
                 }
                 for (name, ty) in decl["entityTypes"].as_object().into_iter().flatten() {
+                    decls
+                        .resource_types
+                        .insert(qualified(ns, name), resource_type(&types, ty, ns));
                     if ty["annotations"].get("subject").is_none() {
                         continue;
                     }
@@ -446,9 +474,45 @@ fn action_info(types: &Types, decl: &Value) -> Result<ActionInfo, String> {
         }
     };
     let description = decl["annotations"]["doc"].as_str().map(str::to_owned);
+    let resource_types = decl["appliesTo"]["resourceTypes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|t| t.as_str())
+        .map(|t| types.entity(t, ""))
+        .collect();
+    let annotations = decl["annotations"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_owned())))
+        .collect();
     Ok(ActionInfo {
         details,
         singleton,
         description,
+        resource_types,
+        annotations,
     })
+}
+
+/// How polkit's details describe an entity type.
+fn resource_type(types: &Types, decl: &Value, ns: &str) -> ResourceType {
+    let attrs = decl["shape"]["attributes"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(name, ty)| {
+            Some(DetailAttr {
+                name: name.clone(),
+                detail: ty["annotations"]["detail"].as_str()?.to_owned(),
+                ty: types.detail_type(ty, ns),
+                required: ty["required"] != false,
+            })
+        })
+        .collect();
+    ResourceType {
+        detail: decl["annotations"]["detail"].as_str().map(str::to_owned),
+        attrs,
+    }
 }

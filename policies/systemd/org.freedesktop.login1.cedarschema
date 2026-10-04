@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Allow applications to inhibit system shutdown")
+@message("Authentication is required for an application to inhibit system shutdown.")
+@defaults("auth_admin_keep yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-delay-shutdown org.freedesktop.login1.inhibit-block-sleep org.freedesktop.login1.inhibit-delay-sleep org.freedesktop.login1.inhibit-block-idle")
 @singleton("systemd::InhibitTarget::\"shutdown\"")
 action "org.freedesktop.login1.inhibit-block-shutdown" appliesTo {
@@ -11,6 +15,10 @@ action "org.freedesktop.login1.inhibit-block-shutdown" appliesTo {
 };
 
 @doc("Allow applications to delay system shutdown")
+@message("Authentication is required for an application to delay system shutdown.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-delay-sleep")
 @singleton("systemd::InhibitTarget::\"shutdown\"")
 action "org.freedesktop.login1.inhibit-delay-shutdown" appliesTo {
@@ -20,6 +28,10 @@ action "org.freedesktop.login1.inhibit-delay-shutdown" appliesTo {
 };
 
 @doc("Allow applications to inhibit system sleep")
+@message("Authentication is required for an application to inhibit system sleep.")
+@defaults("auth_admin_keep yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-delay-sleep org.freedesktop.login1.inhibit-block-idle")
 @singleton("systemd::InhibitTarget::\"sleep\"")
 action "org.freedesktop.login1.inhibit-block-sleep" appliesTo {
@@ -29,6 +41,10 @@ action "org.freedesktop.login1.inhibit-block-sleep" appliesTo {
 };
 
 @doc("Allow applications to delay system sleep")
+@message("Authentication is required for an application to delay system sleep.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::InhibitTarget::\"sleep\"")
 action "org.freedesktop.login1.inhibit-delay-sleep" appliesTo {
   principal: [User],
@@ -37,6 +53,10 @@ action "org.freedesktop.login1.inhibit-delay-sleep" appliesTo {
 };
 
 @doc("Allow applications to inhibit automatic system suspend")
+@message("Authentication is required for an application to inhibit automatic system suspend.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::InhibitTarget::\"idle\"")
 action "org.freedesktop.login1.inhibit-block-idle" appliesTo {
   principal: [User],
@@ -45,6 +65,10 @@ action "org.freedesktop.login1.inhibit-block-idle" appliesTo {
 };
 
 @doc("Allow applications to inhibit system handling of the power key")
+@message("Authentication is required for an application to inhibit system handling of the power key.")
+@defaults("no yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-handle-suspend-key org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
 @singleton("systemd::InhibitTarget::\"handle-power-key\"")
 action "org.freedesktop.login1.inhibit-handle-power-key" appliesTo {
@@ -54,6 +78,10 @@ action "org.freedesktop.login1.inhibit-handle-power-key" appliesTo {
 };
 
 @doc("Allow applications to inhibit system handling of the suspend key")
+@message("Authentication is required for an application to inhibit system handling of the suspend key.")
+@defaults("no yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
 @singleton("systemd::InhibitTarget::\"handle-suspend-key\"")
 action "org.freedesktop.login1.inhibit-handle-suspend-key" appliesTo {
@@ -63,6 +91,10 @@ action "org.freedesktop.login1.inhibit-handle-suspend-key" appliesTo {
 };
 
 @doc("Allow applications to inhibit system handling of the hibernate key")
+@message("Authentication is required for an application to inhibit system handling of the hibernate key.")
+@defaults("no yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::InhibitTarget::\"handle-hibernate-key\"")
 action "org.freedesktop.login1.inhibit-handle-hibernate-key" appliesTo {
   principal: [User],
@@ -71,6 +103,10 @@ action "org.freedesktop.login1.inhibit-handle-hibernate-key" appliesTo {
 };
 
 @doc("Allow applications to inhibit system handling of the lid switch")
+@message("Authentication is required for an application to inhibit system handling of the lid switch.")
+@defaults("no yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::InhibitTarget::\"handle-lid-switch\"")
 action "org.freedesktop.login1.inhibit-handle-lid-switch" appliesTo {
   principal: [User],
@@ -79,6 +115,10 @@ action "org.freedesktop.login1.inhibit-handle-lid-switch" appliesTo {
 };
 
 @doc("Allow applications to inhibit system handling of the reboot key")
+@message("Authentication is required for an application to inhibit system handling of the reboot key.")
+@defaults("no yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.inhibit-handle-suspend-key org.freedesktop.login1.inhibit-handle-hibernate-key org.freedesktop.login1.inhibit-handle-lid-switch")
 @singleton("systemd::InhibitTarget::\"handle-reboot-key\"")
 action "org.freedesktop.login1.inhibit-handle-reboot-key" appliesTo {
@@ -88,6 +128,10 @@ action "org.freedesktop.login1.inhibit-handle-reboot-key" appliesTo {
 };
 
 @doc("Allow non-logged-in user to run programs")
+@message("Explicit request is required to run programs as a non-logged-in user.")
+@defaults("yes yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.login1.set-self-linger" appliesTo {
   principal: [User],
   resource: [User],
@@ -95,6 +139,10 @@ action "org.freedesktop.login1.set-self-linger" appliesTo {
 };
 
 @doc("Allow non-logged-in users to run programs")
+@message("Authentication is required to run programs as a non-logged-in user.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.login1.set-user-linger" appliesTo {
   principal: [User],
   resource: [User],
@@ -102,6 +150,10 @@ action "org.freedesktop.login1.set-user-linger" appliesTo {
 };
 
 @doc("Allow attaching devices to seats")
+@message("Authentication is required to attach a device to a seat.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.flush-devices")
 action "org.freedesktop.login1.attach-device" appliesTo {
   principal: [User],
@@ -110,6 +162,10 @@ action "org.freedesktop.login1.attach-device" appliesTo {
 };
 
 @doc("Flush device to seat attachments")
+@message("Authentication is required to reset how devices are attached to seats.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.flush-devices" appliesTo {
   principal: [User],
@@ -118,6 +174,10 @@ action "org.freedesktop.login1.flush-devices" appliesTo {
 };
 
 @doc("Power off the system")
+@message("Authentication is required to power off the system.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.set-wall-message")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off" appliesTo {
@@ -127,6 +187,10 @@ action "org.freedesktop.login1.power-off" appliesTo {
 };
 
 @doc("Power off the system while other users are logged in")
+@message("Authentication is required to power off the system while other users are logged in.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.power-off")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off-multiple-sessions" appliesTo {
@@ -136,6 +200,10 @@ action "org.freedesktop.login1.power-off-multiple-sessions" appliesTo {
 };
 
 @doc("Power off the system while an application is inhibiting this")
+@message("Authentication is required to power off the system while an application is inhibiting this.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.power-off")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.power-off-ignore-inhibit" appliesTo {
@@ -145,6 +213,10 @@ action "org.freedesktop.login1.power-off-ignore-inhibit" appliesTo {
 };
 
 @doc("Reboot the system")
+@message("Authentication is required to reboot the system.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.set-wall-message")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot" appliesTo {
@@ -154,6 +226,10 @@ action "org.freedesktop.login1.reboot" appliesTo {
 };
 
 @doc("Reboot the system while other users are logged in")
+@message("Authentication is required to reboot the system while other users are logged in.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot-multiple-sessions" appliesTo {
@@ -163,6 +239,10 @@ action "org.freedesktop.login1.reboot-multiple-sessions" appliesTo {
 };
 
 @doc("Reboot the system while an application is inhibiting this")
+@message("Authentication is required to reboot the system while an application is inhibiting this.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.reboot-ignore-inhibit" appliesTo {
@@ -172,6 +252,10 @@ action "org.freedesktop.login1.reboot-ignore-inhibit" appliesTo {
 };
 
 @doc("Halt the system")
+@message("Authentication is required to halt the system.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.set-wall-message")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt" appliesTo {
@@ -181,6 +265,10 @@ action "org.freedesktop.login1.halt" appliesTo {
 };
 
 @doc("Halt the system while other users are logged in")
+@message("Authentication is required to halt the system while other users are logged in.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.halt")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt-multiple-sessions" appliesTo {
@@ -190,6 +278,10 @@ action "org.freedesktop.login1.halt-multiple-sessions" appliesTo {
 };
 
 @doc("Halt the system while an application is inhibiting this")
+@message("Authentication is required to halt the system while an application is inhibiting this.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.halt")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.halt-ignore-inhibit" appliesTo {
@@ -199,6 +291,10 @@ action "org.freedesktop.login1.halt-ignore-inhibit" appliesTo {
 };
 
 @doc("Suspend the system")
+@message("Authentication is required to suspend the system.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend" appliesTo {
   principal: [User],
@@ -207,6 +303,10 @@ action "org.freedesktop.login1.suspend" appliesTo {
 };
 
 @doc("Suspend the system while other users are logged in")
+@message("Authentication is required to suspend the system while other users are logged in.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.suspend")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend-multiple-sessions" appliesTo {
@@ -216,6 +316,10 @@ action "org.freedesktop.login1.suspend-multiple-sessions" appliesTo {
 };
 
 @doc("Suspend the system while an application is inhibiting this")
+@message("Authentication is required to suspend the system while an application is inhibiting this.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.suspend")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.suspend-ignore-inhibit" appliesTo {
@@ -225,6 +329,10 @@ action "org.freedesktop.login1.suspend-ignore-inhibit" appliesTo {
 };
 
 @doc("Hibernate the system")
+@message("Authentication is required to hibernate the system.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate" appliesTo {
   principal: [User],
@@ -233,6 +341,10 @@ action "org.freedesktop.login1.hibernate" appliesTo {
 };
 
 @doc("Hibernate the system while other users are logged in")
+@message("Authentication is required to hibernate the system while other users are logged in.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.hibernate")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate-multiple-sessions" appliesTo {
@@ -242,6 +354,10 @@ action "org.freedesktop.login1.hibernate-multiple-sessions" appliesTo {
 };
 
 @doc("Hibernate the system while an application is inhibiting this")
+@message("Authentication is required to hibernate the system while an application is inhibiting this.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.hibernate")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.hibernate-ignore-inhibit" appliesTo {
@@ -251,6 +367,10 @@ action "org.freedesktop.login1.hibernate-ignore-inhibit" appliesTo {
 };
 
 @doc("Manage active sessions, users and seats")
+@message("Authentication is required to manage active sessions, users and seats.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.login1.manage" appliesTo {
   principal: [User],
   resource: [logind::Session, User, logind::Seat],
@@ -258,6 +378,10 @@ action "org.freedesktop.login1.manage" appliesTo {
 };
 
 @doc("Lock or unlock active sessions")
+@message("Authentication is required to lock or unlock active sessions.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.lock-sessions" appliesTo {
   principal: [User],
@@ -266,6 +390,10 @@ action "org.freedesktop.login1.lock-sessions" appliesTo {
 };
 
 @doc("Set the reboot \"reason\" in the kernel")
+@message("Authentication is required to set the reboot \"reason\" in the kernel.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-parameter" appliesTo {
@@ -275,6 +403,10 @@ action "org.freedesktop.login1.set-reboot-parameter" appliesTo {
 };
 
 @doc("Indicate to the firmware to boot to setup interface")
+@message("Authentication is required to indicate to the firmware to boot to setup interface.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-firmware-setup" appliesTo {
@@ -284,6 +416,10 @@ action "org.freedesktop.login1.set-reboot-to-firmware-setup" appliesTo {
 };
 
 @doc("Indicate to the boot loader to boot to the boot loader menu")
+@message("Authentication is required to indicate to the boot loader to boot to the boot loader menu.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-boot-loader-menu" appliesTo {
@@ -293,6 +429,10 @@ action "org.freedesktop.login1.set-reboot-to-boot-loader-menu" appliesTo {
 };
 
 @doc("Indicate to the boot loader to boot a specific entry")
+@message("Authentication is required to indicate to the boot loader to boot into a specific boot loader entry.")
+@defaults("auth_admin_keep auth_admin_keep yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.login1.reboot")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-reboot-to-boot-loader-entry" appliesTo {
@@ -302,6 +442,10 @@ action "org.freedesktop.login1.set-reboot-to-boot-loader-entry" appliesTo {
 };
 
 @doc("Set a wall message")
+@message("Authentication is required to set a wall message.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "org.freedesktop.login1.set-wall-message" appliesTo {
   principal: [User],
@@ -310,6 +454,10 @@ action "org.freedesktop.login1.set-wall-message" appliesTo {
 };
 
 @doc("Change Session")
+@message("Authentication is required to change the virtual terminal.")
+@defaults("auth_admin_keep yes yes")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.login1.chvt" appliesTo {
   principal: [User],
   resource: [logind::Seat],

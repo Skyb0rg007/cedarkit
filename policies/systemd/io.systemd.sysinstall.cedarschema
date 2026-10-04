@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Install OS to disk")
+@message("Authentication is required to install an OS to disk.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "io.systemd.sysinstall.Run" appliesTo {
   principal: [User],
   resource: [systemd::Device],
@@ -9,6 +13,10 @@ action "io.systemd.sysinstall.Run" appliesTo {
 };
 
 @doc("List candidate devices")
+@message("Authentication is required to list device candidates.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::System::\"local\"")
 action "io.systemd.sysinstall.ListCandidateDevices" appliesTo {
   principal: [User],

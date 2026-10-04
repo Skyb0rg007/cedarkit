@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Inspect a portable service image")
+@message("Authentication is required to inspect a portable service image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.portable1.inspect-images" appliesTo {
   principal: [User],
   resource: [systemd::Image],
@@ -9,6 +13,10 @@ action "org.freedesktop.portable1.inspect-images" appliesTo {
 };
 
 @doc("Attach or detach a portable service image")
+@message("Authentication is required to attach or detach a portable service image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.systemd1.reload-daemon")
 action "org.freedesktop.portable1.attach-images" appliesTo {
   principal: [User],
@@ -17,6 +25,10 @@ action "org.freedesktop.portable1.attach-images" appliesTo {
 };
 
 @doc("Delete or modify portable service image")
+@message("Authentication is required to delete or modify a portable service image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.portable1.manage-images" appliesTo {
   principal: [User],
   resource: [systemd::Image, systemd::ImagePool],

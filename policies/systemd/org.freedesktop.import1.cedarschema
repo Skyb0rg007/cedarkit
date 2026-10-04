@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Import a disk image")
+@message("Authentication is required to import an image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.import1.import" appliesTo {
   principal: [User],
   resource: [systemd::Image],
@@ -9,6 +13,10 @@ action "org.freedesktop.import1.import" appliesTo {
 };
 
 @doc("Export a disk image")
+@message("Authentication is required to export disk image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.import1.export" appliesTo {
   principal: [User],
   resource: [systemd::Image],
@@ -16,6 +24,10 @@ action "org.freedesktop.import1.export" appliesTo {
 };
 
 @doc("Download a disk image")
+@message("Authentication is required to download a disk image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.import1.pull" appliesTo {
   principal: [User],
   resource: [systemd::Image, systemd::ImagePool],
@@ -23,6 +35,10 @@ action "org.freedesktop.import1.pull" appliesTo {
 };
 
 @doc("Cancel transfer of a disk image")
+@message("Authentication is required to cancel the ongoing transfer of a disk image.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.import1.cancel" appliesTo {
   principal: [User],
   resource: [systemd::Transfer],

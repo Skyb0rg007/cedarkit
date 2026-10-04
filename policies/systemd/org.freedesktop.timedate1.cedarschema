@@ -2,6 +2,10 @@
 // Do not edit; regenerate instead.
 
 @doc("Set system time")
+@message("Authentication is required to set the system time.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @implies("org.freedesktop.timedate1.set-timezone org.freedesktop.timedate1.set-ntp")
 @singleton("systemd::Clock::\"system\"")
 action "org.freedesktop.timedate1.set-time" appliesTo {
@@ -11,6 +15,10 @@ action "org.freedesktop.timedate1.set-time" appliesTo {
 };
 
 @doc("Set system timezone")
+@message("Authentication is required to set the system timezone.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Timezone::\"system\"")
 action "org.freedesktop.timedate1.set-timezone" appliesTo {
   principal: [User],
@@ -19,6 +27,10 @@ action "org.freedesktop.timedate1.set-timezone" appliesTo {
 };
 
 @doc("Set RTC to local timezone or UTC")
+@message("Authentication is required to control whether the RTC stores the local or UTC time.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Clock::\"rtc\"")
 action "org.freedesktop.timedate1.set-local-rtc" appliesTo {
   principal: [User],
@@ -27,6 +39,10 @@ action "org.freedesktop.timedate1.set-local-rtc" appliesTo {
 };
 
 @doc("Turn network time synchronization on or off")
+@message("Authentication is required to control whether network time synchronization shall be enabled.")
+@defaults("auth_admin_keep auth_admin_keep auth_admin_keep")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Clock::\"ntp\"")
 action "org.freedesktop.timedate1.set-ntp" appliesTo {
   principal: [User],

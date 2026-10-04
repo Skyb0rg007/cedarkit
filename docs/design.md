@@ -51,13 +51,13 @@ The **contract** consists of:
 | Applications (vendor files) | their own namespace only | schemas, policies and role memberships for their own actions and roles |
 | Local admin (`/etc` files) | everything | any policy, schema or role membership |
 | Authentication agents | showing a challenge to the user of their session | the user's choice to authenticate or not, and their answers to PAM's prompts, never the result |
-| PAM, run by CedarKit | verifying credentials | whether user U authenticated |
+| PAM, run by CedarKit, or by polkit's helper as root for polkit agents | verifying credentials | whether user U authenticated |
 | Unprivileged callers | nothing | only the question being asked |
 
 Consequences, all enforced by CedarKit:
 
 - **The subject is the calling process.** CedarKit identifies it from the D-Bus connection's credentials (pidfd where available, otherwise pid plus start time) and derives the uid and groups itself. A caller never supplies a uid. Everything else known about the subject comes from fact providers ([section 6.5](#65-fact-providers)). Checking on behalf of another process is limited to root and to mechanisms, as in polkit.
-- **Authentication state** comes only from PAM, which CedarKit runs itself (fresh), and from CedarKit's store of remembered authentications. It never comes from files, callers, mechanisms or agents ([section 9.6](#96-authentication-agents)).
+- **Authentication state** comes only from PAM, which CedarKit runs itself or polkit's helper runs as root (fresh), and from CedarKit's store of remembered authentications. It never comes from files, callers, mechanisms or agents ([sections 9.6](#96-authentication-agents) and [11](#11-the-polkit-compatible-front-end)).
 - **Resource facts** are accepted only from mechanisms allowed to assert them for that namespace, and **subject facts** only from the provider that owns the namespace (see [open question 1](#13-open-questions)).
 - **Vendor files** can only affect their own namespace ([section 8.2](#82-what-vendor-files-may-contain)).
 
@@ -167,6 +167,9 @@ Each application declares its types in its own Cedar namespace, named after its 
 | `@doc("…")` | the human-readable description (polkit's `<description>`) |
 | `@singleton("Type::\"id\"")` | the resource, for actions that always act on the same one |
 | `@implies("a b …")` | polkit's `org.freedesktop.policykit.imply`: being allowed this action also allows the listed ones ([section 7.5](#75-implied-actions)) |
+| `@message("…")` | what authentication agents show (polkit's `<message>`) |
+| `@owners("unix-user:… …")` | polkit's `org.freedesktop.policykit.owner`: who besides root may check the action for other users' processes |
+| `@defaults("any inactive active")`, `@vendor`, `@vendor_url`, `@icon` | the polkit `.policy` file's defaults, vendor and icon, which polkit's `EnumerateActions` reports; they don't affect decisions |
 
 ### 6.3 Context types and details
 
@@ -289,9 +292,9 @@ Generated policies, and policies written by applications, express polkit's resul
 | polkit | condition |
 |---|---|
 | `yes` | none |
-| `auth_self_keep` | `context.auth has user && context.auth.user == principal && context.auth.action == action && context.auth.same_resource` |
+| `auth_self_keep` | `context.auth has user && context.auth.user == principal && context.auth.action == action` |
 | `auth_self` | `context.auth has user && context.auth.user == principal && context.auth.fresh` |
-| `auth_admin_keep` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.action == action && context.auth.same_resource` |
+| `auth_admin_keep` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.action == action` |
 | `auth_admin` | `context.auth has user && context.auth.user in Role::"<prefix>admin" && context.auth.fresh` |
 | `no` | no policy |
 
@@ -338,7 +341,7 @@ This matches polkit only when each column is at least as permissive as the broad
 
 ### 7.4 Remembered authentications
 
-By default (the generated `_keep` patterns), a remembered authentication counts only for the same action on the same resource. Policies decide when it counts for more:
+By default (the generated `_keep` patterns), a remembered authentication counts for the same action, on any resource, as polkit's temporary authorizations do. Policies decide when it counts for less, by also requiring `context.auth.same_resource`, or for more:
 
 ```cedar
 // Any of these time settings may use an admin authentication remembered
@@ -439,14 +442,18 @@ The engine's answer satisfies all of these, however it computes them.
 
 ### 9.2 Remembered authentications
 
-- After an agent reports a successful authentication, CedarKit remembers it, recording:
-  - the subject process, identified by pidfd or pid plus start time;
+Remembered authentications follow polkit's temporary authorizations:
+
+- **What's remembered:** after a user authenticates for a challenge, CedarKit remembers it if a remembered authentication by that user would be accepted for the request (the option's `keep`, polkit's `_keep`), recording:
+  - who it's for: the subject process, identified by pid and start time, or for a `unix-session` subject, the session;
   - the authenticated user;
   - the action and resource it was given for;
+  - the session of the agent it was given through, which lists and revokes it;
   - an expiry time.
-- It's forgotten when it expires (by default 5 minutes, configurable), when the process exits, or when the subject's session ends.
-- When checking a request, the engine tries each authentication remembered for the subject process, with `fresh = false` and `action`/`same_resource` set from the record. The request is allowed if Cedar allows it with any of them.
-- Whether a remembered authentication counts is decided only by policy ([section 7.4](#74-remembered-authentications)).
+- **One per action:** a new one replaces any remembered for the same subject and action.
+- **Forgotten** when it expires (by default 300 seconds: `--remember-seconds`, or polkit's `ExpirationSeconds` from `polkitd.conf`), when its process exits, or when revoked through polkit's methods. Each change emits polkit's `Changed`.
+- **Shared by siblings:** as in polkit 127 and later, a process may use one remembered for a sibling: both running as the same user, children of the same parent (not init), in the same cgroup as each other and the parent, with the same controlling pseudo-terminal, which is older than both. CedarKit computes the boot time precisely for that comparison, where polkit uses `/proc/stat`'s, which is truncated to whole seconds.
+- **Checking:** the engine tries each authentication remembered for the subject, with `fresh = false` and `action`/`same_resource` set from the record. The request is allowed if Cedar allows it with any of them. Whether one counts is decided only by policy ([section 7.4](#74-remembered-authentications)); in particular, if the user who authenticated is no longer an admin, an `auth_admin_keep` policy no longer accepts it, as polkit re-checks the admin identity.
 
 ### 9.3 Challenges
 
@@ -518,13 +525,15 @@ Foreseen additions, all append-only:
 
 ## 11. The polkit-compatible front end
 
-`org.freedesktop.PolicyKit1.Authority`, for unmodified polkit clients and agents. It's built on the native evaluation and is not part of the Cedar contract.
+`org.freedesktop.PolicyKit1.Authority`, for unmodified polkit clients and agents, served by `cedarkitd --polkit` in place of polkitd. It's built on the native evaluation and is not part of the Cedar contract.
 
-- **Resources:** built from polkit details using the `@detail` and `@singleton` annotations. Details are converted to the types the schema declares.
+- **Subjects:** `unix-process` (by pidfd, or pid and start time), `unix-session` and `system-bus-name`. As in polkit, a caller may check for another user's process only if it's root or one of the action's `@owners`.
+- **Resources:** built from polkit details using the `@detail` and `@singleton` annotations. Each of the action's resource types is tried in order, and the first whose identifying details are all present is used, then the singleton. Details are converted to the types the schema declares; a detail holding a user must be a uid. If the details don't identify a resource, the check is denied.
 - **Labels:** `auth_self` or `auth_self_keep` if the only option is the subject, otherwise `auth_admin` or `auth_admin_keep`. The `_keep` form is used if a remembered authentication would be accepted. The returned `polkit.result` detail carries the same label.
-- **Agents:** the agent receives the options as its identity list. A response is accepted only for a listed identity, and is then re-checked with a fresh authentication by that user.
+- **Agents:** polkit agents, such as GNOME Shell's, register for their own session, and share the registry with native agents ([section 9.6](#96-authentication-agents)). The agent receives the options as its identity list and the action's `@message`, and runs polkit's helper, which reports who authenticated (`AuthenticationAgentResponse`, `…2` or `…3`). Responses are accepted only from root, for a listed identity, and for the agent's own user; the request is then re-checked with a fresh authentication by that user. A dismissed request returns `polkit.dismissed`.
 - **Unknown actions and challenges nobody can answer:** denied, like the native interface ([decision 3](#12-decisions-and-rationale)). There's no root fallback.
-- **Remembered authentications:** reported with `polkit.temporary_authorization_id`, and can be listed and revoked through polkit's methods.
+- **Remembered authentications:** polkit's temporary authorizations ([section 9.2](#92-remembered-authentications)). Reported with `polkit.temporary_authorization_id`, with `polkit.retains_authorization_after_challenge` for `_keep` challenges, and listed and revoked through polkit's methods for the caller's own session.
+- **`EnumerateActions`** reports each action's `@doc`, `@message`, vendor and icon, and the defaults its `.policy` file declared (`@defaults`). Like polkit, these describe the action as shipped, not what the policies currently decide.
 
 ## 12. Decisions and rationale
 
@@ -535,7 +544,7 @@ Foreseen additions, all append-only:
 | 3 | Unknown actions and unanswerable challenges are denied in both interfaces. | Fail closed. Chosen over polkit's behaviour (an error, and root as a last-resort identity). |
 | 4 | Session columns are cumulative, and non-monotonic `.policy` files are rejected. | Simpler policies; holds for all of systemd's actions. |
 | 5 | Users are identified by uid, with an optional `name` attribute. Groups are identified by name. | Uids are stable and every account has one. Group names keep entity files readable. |
-| 6 | Remembered authentications record their action and resource, and policies decide what they count for. | Configurable per action. By default stricter than polkit, which reuses an authentication for any resource. |
+| 6 | Remembered authentications record their action and resource, and policies decide what they count for. By default, the same action on any resource, as polkit. | Configurable per action. Matching polkit by default means `_keep` behaves as users of polkit expect; a policy can require the same resource. |
 | 7 | `imply` becomes policy: implied actions get copies of the implying actions' `yes` and `_keep` permits. | Keeps `imply` in Cedar, where analysis tools and admins can see it, instead of in the engine. The cost: later policies for an implying action don't automatically extend to the actions it implies. |
 | 8 | Labels exist only in the polkit front end. | The labelling heuristic has changed repeatedly. Keeping it out of the contract means it can change again without breaking anything. |
 | 9 | Vendor files are confined to their namespace, and entity data can only add role memberships. | Packages can't grant themselves, or each other, anything outside their own actions. Entity data can't forge facts about requests. |
@@ -547,8 +556,7 @@ Foreseen additions, all append-only:
 
 1. **How mechanisms and fact providers are bound to namespaces.** For example, a vendor manifest listing the D-Bus names or uids allowed to report `systemd::` resources or `sshd::` subject facts. Until then, the native interface accepts resource facts only from root, and only built-in providers report subject facts.
 2. **Root.** polkit authorizes uid 0 without evaluating anything, unless asked to check anyway. Should CedarKit do the same in the polkit front end, the native interface, or neither? systemd skips polkit for root itself.
-3. **Default `_keep` scope.** [Section 7.1](#71-authentication-patterns) uses "same action, same resource". polkit uses "same action, any resource". This could be either default, and is configurable by policy whichever is chosen.
-4. **Interaction flag.** Whether a check without `AllowUserInteraction` should still report the options (polkit reports only that a challenge is needed), given that the options reveal who's an admin.
+3. **Interaction flag.** Whether a check without `AllowUserInteraction` should still report the options (polkit reports only that a challenge is needed), given that the options reveal who's an admin.
 
 ## 14. Implementation status
 
@@ -560,10 +568,9 @@ Implemented:
 - `cedarctl validate` with the warnings in [section 8.4](#84-validation-at-load);
 - the native D-Bus interface, deriving the subject from the caller's credentials and logind;
 - authentication agents ([section 9.6](#96-authentication-agents)), with `cedarkit-agent`, a GTK agent after GNOME Shell's;
+- the polkit-compatible front end ([section 11](#11-the-polkit-compatible-front-end)), including polkit's agents and temporary authorizations;
 - the translator and systemd's policies, in `policies/systemd/`.
 
 Not yet implemented:
 
-- forgetting remembered authentications when the process exits or its session ends;
-- the polkit-compatible front end ([section 11](#11-the-polkit-compatible-front-end)); its labels are in `cedarkit_core::polkit`;
 - binding mechanisms and providers to namespaces ([open question 1](#13-open-questions)).

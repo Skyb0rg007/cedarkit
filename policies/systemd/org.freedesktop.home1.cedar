@@ -34,6 +34,5 @@ permit (
   resource
 )
 when {
-  context.auth has user && context.auth.user in Role::"org.freedesktop.home1.admin" &&
-  context.auth.action == action && context.auth.same_resource
+  context.auth has user && context.auth.user in Role::"org.freedesktop.home1.admin" && context.auth.action == action
 };

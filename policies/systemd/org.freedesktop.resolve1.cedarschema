@@ -2,6 +2,11 @@
 // Do not edit; regenerate instead.
 
 @doc("Register a DNS-SD service")
+@message("Authentication is required to register a DNS-SD service.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.register-service" appliesTo {
   principal: [User],
   resource: [systemd::DnssdService],
@@ -9,6 +14,11 @@ action "org.freedesktop.resolve1.register-service" appliesTo {
 };
 
 @doc("Unregister a DNS-SD service")
+@message("Authentication is required to unregister a DNS-SD service.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.unregister-service" appliesTo {
   principal: [User],
   resource: [systemd::DnssdService],
@@ -16,6 +26,11 @@ action "org.freedesktop.resolve1.unregister-service" appliesTo {
 };
 
 @doc("Set DNS servers")
+@message("Authentication is required to set DNS servers.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-dns-servers" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -23,6 +38,11 @@ action "org.freedesktop.resolve1.set-dns-servers" appliesTo {
 };
 
 @doc("Set domains")
+@message("Authentication is required to set domains.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-domains" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -30,6 +50,11 @@ action "org.freedesktop.resolve1.set-domains" appliesTo {
 };
 
 @doc("Set default route")
+@message("Authentication is required to set default route.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-default-route" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -37,6 +62,11 @@ action "org.freedesktop.resolve1.set-default-route" appliesTo {
 };
 
 @doc("Enable/disable LLMNR")
+@message("Authentication is required to enable or disable LLMNR.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-llmnr" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -44,6 +74,11 @@ action "org.freedesktop.resolve1.set-llmnr" appliesTo {
 };
 
 @doc("Enable/disable multicast DNS")
+@message("Authentication is required to enable or disable multicast DNS.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-mdns" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -51,6 +86,11 @@ action "org.freedesktop.resolve1.set-mdns" appliesTo {
 };
 
 @doc("Enable/disable DNS over TLS")
+@message("Authentication is required to enable or disable DNS over TLS.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-dns-over-tls" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -58,6 +98,11 @@ action "org.freedesktop.resolve1.set-dns-over-tls" appliesTo {
 };
 
 @doc("Enable/disable DNSSEC")
+@message("Authentication is required to enable or disable DNSSEC.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-dnssec" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -65,6 +110,11 @@ action "org.freedesktop.resolve1.set-dnssec" appliesTo {
 };
 
 @doc("Set DNSSEC Negative Trust Anchors")
+@message("Authentication is required to set DNSSEC Negative Trust Anchors.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.set-dnssec-negative-trust-anchors" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -72,6 +122,11 @@ action "org.freedesktop.resolve1.set-dnssec-negative-trust-anchors" appliesTo {
 };
 
 @doc("Revert name resolution settings")
+@message("Authentication is required to reset name resolution settings.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 action "org.freedesktop.resolve1.revert" appliesTo {
   principal: [User],
   resource: [systemd::Link],
@@ -79,6 +134,11 @@ action "org.freedesktop.resolve1.revert" appliesTo {
 };
 
 @doc("Subscribe query results")
+@message("Authentication is required to subscribe query results.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.subscribe-query-results" appliesTo {
   principal: [User],
@@ -87,6 +147,11 @@ action "org.freedesktop.resolve1.subscribe-query-results" appliesTo {
 };
 
 @doc("Subscribe to DNS configuration")
+@message("Authentication is required to subscribe to DNS configuration.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.subscribe-dns-configuration" appliesTo {
   principal: [User],
@@ -95,6 +160,11 @@ action "org.freedesktop.resolve1.subscribe-dns-configuration" appliesTo {
 };
 
 @doc("Dump cache")
+@message("Authentication is required to dump cache.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-cache" appliesTo {
   principal: [User],
@@ -103,6 +173,11 @@ action "org.freedesktop.resolve1.dump-cache" appliesTo {
 };
 
 @doc("Dump server state")
+@message("Authentication is required to dump server state.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-server-state" appliesTo {
   principal: [User],
@@ -111,6 +186,11 @@ action "org.freedesktop.resolve1.dump-server-state" appliesTo {
 };
 
 @doc("Dump statistics")
+@message("Authentication is required to dump statistics.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.dump-statistics" appliesTo {
   principal: [User],
@@ -119,6 +199,11 @@ action "org.freedesktop.resolve1.dump-statistics" appliesTo {
 };
 
 @doc("Reset statistics")
+@message("Authentication is required to reset statistics.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.reset-statistics" appliesTo {
   principal: [User],
@@ -127,6 +212,11 @@ action "org.freedesktop.resolve1.reset-statistics" appliesTo {
 };
 
 @doc("Flush DNS caches")
+@message("Authentication is required to flush DNS caches.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.flush-caches" appliesTo {
   principal: [User],
@@ -135,6 +225,11 @@ action "org.freedesktop.resolve1.flush-caches" appliesTo {
 };
 
 @doc("Reset server features")
+@message("Authentication is required to reset server features.")
+@defaults("auth_admin auth_admin auth_admin_keep")
+@owners("unix-user:systemd-resolve")
+@vendor("The systemd Project")
+@vendor_url("https://systemd.io")
 @singleton("systemd::Resolver::\"system\"")
 action "org.freedesktop.resolve1.reset-server-features" appliesTo {
   principal: [User],

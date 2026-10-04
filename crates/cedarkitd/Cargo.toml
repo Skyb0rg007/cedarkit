@@ -20,3 +20,4 @@ libc = "0.2"
 serde_json.workspace = true
 zlink = { workspace = true, features = ["server", "tokio"] }
 serde.workspace = true
+nix.workspace = true
